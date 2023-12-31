@@ -48,15 +48,14 @@ Y_nomlz=(Y-aver_Y)./stdD_Y;
 % initial X_dis_sq
 X_dis_sq=zeros(x_num,x_num,vari_num);
 for vari_idx=1:vari_num
-    X_dis_sq(:,:,vari_idx)=...
-        (X_nomlz(:,vari_idx)-X_nomlz(:,vari_idx)').^2;
+    X_dis_sq(:,:,vari_idx)=(X_nomlz(:,vari_idx)-X_nomlz(:,vari_idx)').^2;
 end
 
 % regression function define
 reg_fcn=model_option.('reg_fcn');
 if isempty(reg_fcn)
-    % reg_fcn=@(X) ones(size(X,1),1); % zero
-    reg_fcn=@(X) [ones(size(X,1),1),X-stdD_X]; % linear
+    % reg_fcn=@(X) ones(size(X,1),1).*stdD_Y+aver_Y; % zero
+    reg_fcn=@(X) [ones(size(X,1),1),X-stdD_X].*stdD_Y+aver_Y; % linear
 end
 
 % calculate reg
@@ -228,5 +227,4 @@ model_KRG.predict=pred_fcn;
         % renormalize data
         Y_pred=Y_pred*stdD_Y+aver_Y;
     end
-
 end

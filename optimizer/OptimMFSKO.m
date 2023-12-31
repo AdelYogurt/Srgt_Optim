@@ -1,10 +1,18 @@
-classdef OptimKRGEGO < handle
-    % Kriging model base efficient global optimization
+classdef OptimMFSKO < handle
+    % Multiple-Fidelity Sequential Kriging Optimization
     % include MSP, EI, PI, MSE, LCB infill criteria
     %
-    % referance: [1] 韩忠华. Kriging模型及代理优化算法研究进展 [J]. 航空学报, 2016, 37:
+    % referance:
+    % [1] Ruan X, Jiang P, Zhou Q, et al. Variable-fidelity
+    % probability of improvement method for efficient global optimization
+    % of expensive black-box problems [J]. Structural and multidisciplinary
+    % optimization, 2020, 62(6): 3021-52.
+    % [2] Huang D, Allen T T, Notz W I,
+    % et al. Sequential kriging optimization using multiple-fidelity
+    % evaluations [J]. Structural and multidisciplinary optimization, 2006,
+    % 32(5): 369-82.
     %
-    % Copyright 2023 Adel
+    % Copyright 2023.2 Adel
     %
     % abbreviation:
     % obj: objective, con: constraint, iter: iteration, torl: torlance
@@ -24,19 +32,37 @@ classdef OptimKRGEGO < handle
 
         option_optim;
 
-        FLAG_CON;
-        FLAG_MULTI_OBJ;
-        FLAG_MULTI_FIDELITY;
-        FLAG_DiISCRETE_VARI;
-
         datalib;
+        dataoptim;
 
         NFE_max;
         iter_max;
         obj_torl;
         con_torl;
-        NFE;
-        Add_idx;
+    end
+
+    properties
+        % surrogate information
+        CoKRG_option=struct();
+        adapt_hyp=false;
+
+        % strategy parameter option
+        sample_num_init=[];
+
+        % optimize process option
+        datalib_filestr=''; % datalib save mat name
+        dataoptim_filestr=''; % optimize save mat name
+        nomlz_value=100; % max obj when normalize obj,con,coneq
+        add_torl=1000*eps; % surrogate add point protect range
+        X_init=[]; % initial sample point
+        criteria='AEI'; % infill criteria
+        constraint='auto'; % constraint process method
+        fmincon_option=optimoptions('fmincon','Display','none','Algorithm','sqp','ConstraintTolerance',0);
+
+        FLAG_CON;
+        FLAG_MULTI_OBJ;
+        FLAG_MULTI_FIDELITY;
+        FLAG_DiISCRETE_VARI;
 
         FLAG_DRAW_FIGURE=0; % whether draw data
         FLAG_INFORMATION=1; % whether print data
@@ -45,7 +71,7 @@ classdef OptimKRGEGO < handle
 
     % main function
     methods
-        function self=OptimKRGEGO(NFE_max,iter_max,obj_torl,con_torl)
+        function self=OptimMFSKO(NFE_max,iter_max,obj_torl,con_torl)
             % initialize self
             %
             if nargin < 4
@@ -69,138 +95,42 @@ classdef OptimKRGEGO < handle
             self.con_torl=con_torl;
             self.obj_torl=obj_torl;
 
-            % surrogate information
-            option_optim.KRG_option=struct();
-            option_optim.adapt_hyp=false;
 
-            % strategy parameter option
-            option_optim.sample_num_init=[];
-
-            % optimize process option
-            option_optim.datalib_filestr=''; % datalib save mat name
-            option_optim.dataoptim_filestr=''; % optimize save mat name
-            option_optim.nomlz_value=100; % max obj when normalize obj,con,coneq
-            option_optim.add_torl=1000*eps; % surrogate add point protect range
-            option_optim.X_init=[]; % initial sample point
-            option_optim.criteria='EI'; % infill criteria
-            option_optim.constraint='auto'; % constraint process method
-            option_optim.fmincon_option=optimoptions...
-                ('fmincon','Display','none','Algorithm','sqp','ConstraintTolerance',0);
-            option_optim.ga_option=optimoptions...
-                ('ga','Display','none','HybridFcn','fmincon','ConstraintTolerance',0,'FunctionTolerance',1e-3);
-
-            self.option_optim=option_optim;
         end
 
-        function [x_best,obj_best,NFE,output,con_best,coneq_best,vio_best]=optimize(self,varargin)
+        function [x_best,obj_best,NFE,output,con_best,coneq_best,vio_best]=optimize(self,objcon_fcn_list,vari_num,low_bou,up_bou,cost_list)
             % optimize driver
             %
+            fid_num=length(objcon_fcn_list);
+            cost_list=cost_list(:);
 
-            % step 1, initialize problem
-            if length(varargin) == 1
-                % input is struct or object
-                problem=varargin{1};
-                if isstruct(problem)
-                    prob_field=fieldnames(problem);
-                    if ~contains(prob_field,'objcon_fcn'), error('OptimKRGEGO.optimize: input problem lack objcon_fcn'); end
-                    objcon_fcn=problem.objcon_fcn;
-                    if ~contains(prob_field,'vari_num'), error('OptimKRGEGO.optimize: input problem lack vari_num'); end
-                    if ~contains(prob_field,'low_bou'), error('OptimKRGEGO.optimize: input problem lack low_bou'); end
-                    if ~contains(prob_field,'up_bou'), error('OptimKRGEGO.optimize: input problem lack up_bou'); end
-                else
-                    prob_method=methods(problem);
-                    if ~contains(prob_method,'objcon_fcn'), error('OptimKRGEGO.optimize: input problem lack objcon_fcn'); end
-                    objcon_fcn=@(x) problem.objcon_fcn(x);
-                    prob_pro=properties(problem);
-                    if ~contains(prob_pro,'vari_num'), error('OptimKRGEGO.optimize: input problem lack vari_num'); end
-                    if ~contains(prob_pro,'low_bou'), error('OptimKRGEGO.optimize: input problem lack low_bou'); end
-                    if ~contains(prob_pro,'up_bou'), error('OptimKRGEGO.optimize: input problem lack up_bou'); end
-                end
-                vari_num=problem.vari_num;
-                low_bou=problem.low_bou;
-                up_bou=problem.up_bou;
-            else
-                % multi input
-                varargin=[varargin,repmat({[]},1,4-length(varargin))];
-                [objcon_fcn,vari_num,low_bou,up_bou]=varargin{:};
+            % hyper parameter
+            if isempty(self.sample_num_init)
+                self.sample_num_init=ceil((6*vari_num+3)*(1./cost_list/sum(1./cost_list)));
             end
 
-            sample_num_init=self.option_optim.sample_num_init;
-            if isempty(sample_num_init),sample_num_init=6*vari_num+3;end
-            self.option_optim.sample_num_init=sample_num_init;
+            % NFE and iteration setting
+            if isempty(self.NFE_max),self.NFE_max=10+10*vari_num;end
+            if isempty(self.iter_max),self.iter_max=20+20*vari_num;end
 
-            con_best=[];coneq_best=[];vio_best=[];
-            self.NFE=0;
-            self.Add_idx=[];
+            if isempty(self.dataoptim)
+                self.dataoptim.NFE=0;
+                self.dataoptim.Add_idx=[];
+                self.dataoptim.iter=0;
+                self.dataoptim.done=false;
+            end
 
             % step 2, latin hypercube sample
-            self.sampleInit(objcon_fcn,vari_num,low_bou,up_bou,sample_num_init);
+            self.sampleInit(objcon_fcn_list,vari_num,low_bou,up_bou,cost_list);
 
             % step 3, adaptive sample
-            [result_X,result_Obj,result_Con,result_Coneq,result_Vio]=self.sampleAdapt...
-                (objcon_fcn,vari_num,low_bou,up_bou);
 
-            x_best=result_X(end,:);
-            obj_best=result_Obj(end,:);
-            NFE=self.NFE;
-            if ~isempty(result_Con),con_best=result_Con(end,:);end
-            if ~isempty(result_Coneq),coneq_best=result_Coneq(end,:);end
-            if ~isempty(result_Vio),vio_best=result_Vio(end,:);end
-
-            output.result_x_best=result_X;
-            output.result_obj_best=result_Obj;
-            output.result_con_best=result_Con;
-            output.result_coneq_best=result_Coneq;
-            output.result_vio_best=result_Vio;
-            output.NFE=self.NFE;
-            output.Add_idx=self.Add_idx;
-        end
-
-        function sampleInit(self,objcon_fcn,vari_num,low_bou,up_bou,sample_num_init)
-            % initial latin hypercube sample
-            %
-            X_init=self.option_optim.X_init;
-            datalib_filestr=self.option_optim.datalib_filestr;
-
-            % obtain datalib
-            if isempty(self.datalib)
-                self.datalib=self.datalibGet(vari_num,low_bou,up_bou,self.con_torl,datalib_filestr);
+            % initialize all data to begin optimize
+            X=cell(fid_num,1);Obj=cell(fid_num,1);Con=cell(fid_num,1);Coneq=cell(fid_num,1);Vio=cell(fid_num,1);
+            for fid_idx=1:fid_num
+                [X{fid_idx},Obj{fid_idx},Con{fid_idx},Coneq{fid_idx},Vio{fid_idx}]=self.datalibLoad(self.datalib{fid_idx},low_bou,up_bou);
             end
-
-            if size(self.datalib.X,1) < sample_num_init
-                if isempty(X_init)
-                    % use latin hypercube method to get enough initial sample x_list
-                    sample_num=min(sample_num_init-size(self.datalib.X,1),self.NFE_max-self.NFE);
-                    X_init=lhsdesign(sample_num,vari_num,'iterations',50,'criterion','maximin').*(up_bou-low_bou)+low_bou;
-                end
-
-                % updata data lib by x_list
-                self.datalib=self.sample(self.datalib,objcon_fcn,X_init);
-            end
-
-            % detech expensive constraints
-            if ~isempty(self.datalib.Vio)
-                self.FLAG_CON=true(1);
-            else
-                self.FLAG_CON=false(1);
-            end
-        end
-
-        function [result_X,result_Obj,result_Con,result_Coneq,result_Vio]=sampleAdapt...
-                (self,objcon_fcn,vari_num,low_bou,up_bou)
-            % adapt sample to optimize best point
-            %
-
-            model_option=self.option_optim.KRG_option;
-
-            % optimize process option
-            dataoptim_filestr=self.option_optim.dataoptim_filestr;
-            nomlz_value=self.option_optim.nomlz_value;
-
-            iter=0;done=false;
-
-            [X,Obj,Con,Coneq,Vio]=self.datalibLoad(self.datalib,low_bou,up_bou);
-            obj_num=size(Obj,2);con_num=size(Con,2);coneq_num=size(Coneq,2);vio_num=size(Vio,2);
+            obj_num=size(Obj{1},2);con_num=size(Con{1},2);coneq_num=size(Coneq{1},2);vio_num=size(Vio{1},2);
             result_X=zeros(self.iter_max,vari_num);
             result_Obj=zeros(self.iter_max,1);
             if con_num,result_Con=zeros(self.iter_max,con_num);
@@ -211,37 +141,38 @@ classdef OptimKRGEGO < handle
             else,result_Vio=[];end
             x_best=[];obj_best=[];vio_best=[];
 
-            self.Srgt_obj=repmat({model_option},obj_num,1);
-            self.Srgt_con=repmat({model_option},con_num,1);
-            self.Srgt_coneq=repmat({model_option},coneq_num,1);
+            self.Srgt_obj=repmat({self.CoKRG_option},obj_num,1);
+            self.Srgt_con=repmat({self.CoKRG_option},con_num,1);
+            self.Srgt_coneq=repmat({self.CoKRG_option},coneq_num,1);
 
-            iter=iter+1;
-            while ~done
+            self.dataoptim.iter=self.dataoptim.iter+1;
+            while ~self.dataoptim.done
                 % construct kriging model
                 [self.obj_fcn_srgt,self.con_fcn_srgt,...
-                    self.Srgt_obj,self.Srgt_con,self.Srgt_coneq]=self.getSrgtFcnKRG...
+                    self.Srgt_obj,self.Srgt_con,self.Srgt_coneq]=self.getSrgtFcnCoKRG...
                     (X,Obj,Con,Coneq,...
                     self.Srgt_obj,self.Srgt_con,self.Srgt_coneq);
-                best_idx=self.datalib.Best_idx(end);
-                x_min=X(best_idx,:);
-                obj_min=Obj(best_idx,:);
-                if ~isempty(Vio),vio_min=Vio(best_idx,:);
+                best_idx=self.datalib{end}.Best_idx(end);
+                x_min=X{end}(best_idx,:);
+                obj_min=Obj{end}(best_idx,:);
+                if ~isempty(Vio{end}),vio_min=Vio{end}(best_idx,:);
                 else,vio_min=[];end
 
-                % add infill point
-                [x_infill,infill_fcn]=self.searchInfill(vari_num,low_bou,up_bou,x_min,obj_min,vio_min);
-                [self.datalib,x_infill,obj_infill]=self.sample(self.datalib,objcon_fcn,x_infill);
-                [X,Obj,Con,Coneq,Vio]=self.datalibLoad(self.datalib,low_bou,up_bou);
+                % search each fid infill point
+                [x_infill,fid_infill,infill_fid_fcn]=self.searchInfill(fid_num,vari_num,low_bou,up_bou,cost_list,x_min,obj_min,vio_min);
+                [self.datalib{fid_infill},x_infill,obj_infill]=self.sample...
+                    (self.datalib{fid_infill},objcon_fcn_list{fid_infill},x_infill,cost_list(fid_infill),fid_infill);
+                [X{fid_infill},Obj{fid_infill},Con{fid_infill},Coneq{fid_infill},Vio{fid_infill}]=self.datalibLoad(self.datalib{fid_infill},low_bou,up_bou);
 
-                best_idx=self.datalib.Best_idx(end);
-                x_best=X(best_idx,:);
-                result_X(iter,:)=x_best;
-                obj_best=Obj(best_idx,:);
-                result_Obj(iter,:)=obj_best;
-                if con_num,result_Con(iter,:)=Con(best_idx,:);end
-                if coneq_num,result_Coneq(iter,:)=Coneq(best_idx,:);end
-                if vio_num,vio_best=Vio(best_idx,:);result_Vio(iter,:)=vio_best;end
-                iter=iter+1;
+                best_idx=self.datalib{end}.Best_idx(end);
+                x_best=X{end}(best_idx,:);
+                result_X(self.dataoptim.iter,:)=x_best;
+                obj_best=Obj{end}(best_idx,:);
+                result_Obj(self.dataoptim.iter,:)=obj_best;
+                if con_num,result_Con(self.dataoptim.iter,:)=Con{end}(best_idx,:);end
+                if coneq_num,result_Coneq(self.dataoptim.iter,:)=Coneq{end}(best_idx,:);end
+                if vio_num,vio_best=Vio{end}(best_idx,:);result_Vio(self.dataoptim.iter,:)=vio_best;end
+                self.dataoptim.iter=self.dataoptim.iter+1;
 
                 % information
                 if self.FLAG_DRAW_FIGURE && vari_num < 3
@@ -254,36 +185,103 @@ classdef OptimKRGEGO < handle
                 end
 
                 if self.FLAG_INFORMATION
-                    fprintf('obj:    %f    vio:    %f    NFE:    %-3d\n',obj_best,vio_best,self.NFE);
+                    fprintf('obj:    %f    vio:    %f    NFE:    %-.4f\n',obj_best,vio_best,self.dataoptim.NFE);
                 end
 
                 % forced interrupt
-                if iter > self.iter_max || self.NFE >= self.NFE_max
-                    done=1;
+                if self.dataoptim.iter > self.iter_max || self.dataoptim.NFE >= self.NFE_max
+                    self.dataoptim.done=1;
                 end
 
                 % convergence judgment
-                if self.FLAG_CONV_JUDGE && iter > 2
-                    obj_best_old=result_Obj(iter-2,:);
-                    if ( abs((obj_best-obj_best_old)/obj_best_old) < self.obj_torl && ...
-                            ((~isempty(vio_best) && vio_best == 0) || isempty(vio_best)) )
-                        done=1;
+                if self.FLAG_CONV_JUDGE && self.dataoptim.iter > 2
+                    if ( abs((obj_infill-obj_infill_old)/obj_infill_old) < self.obj_torl && ...
+                            ((~isempty(vio_infill) && vio_infill == 0) || isempty(vio_infill)) )
+                        self.dataoptim.done=true;
                     end
+                end
+                obj_infill_old=obj_infill;
+
+                % save iteration
+                if ~isempty(self.dataoptim_filestr)
+                    datalib=self.datalib;
+                    dataoptim=self.dataoptim;
+                    save(self.dataoptim_filestr,'datalib','dataoptim');
                 end
             end
 
-            result_X(iter:end,:)=[];
-            result_Obj(iter:end,:)=[];
-            if con_num,result_Con(iter:end,:)=[];end
-            if coneq_num,result_Coneq(iter:end,:)=[];end
-            if vio_num,result_Vio(iter:end,:)=[];end
+            result_X(self.dataoptim.iter:end,:)=[];
+            result_Obj(self.dataoptim.iter:end,:)=[];
+            if con_num,result_Con(self.dataoptim.iter:end,:)=[];end
+            if coneq_num,result_Coneq(self.dataoptim.iter:end,:)=[];end
+            if vio_num,result_Vio(self.dataoptim.iter:end,:)=[];end
+
+            x_best=result_X(end,:);
+            obj_best=result_Obj(end,:);
+            NFE=self.dataoptim.NFE;
+            if ~isempty(result_Con),con_best=result_Con(end,:);end
+            if ~isempty(result_Coneq),coneq_best=result_Coneq(end,:);end
+            if ~isempty(result_Vio),vio_best=result_Vio(end,:);end
+
+            output.result_x_best=result_X;
+            output.result_obj_best=result_Obj;
+            output.result_con_best=result_Con;
+            output.result_coneq_best=result_Coneq;
+            output.result_vio_best=result_Vio;
+            output.NFE=self.dataoptim.NFE;
+            output.Add_idx=self.dataoptim.Add_idx;
+            output.datalib=self.datalib;
+            output.dataoptim=self.dataoptim;
+        end
+
+        function sampleInit(self,objcon_fcn_list,vari_num,low_bou,up_bou,cost_list)
+            % initial latin hypercube sample
+            %
+
+            fid_num=length(objcon_fcn_list);
+            % obtain datalib
+            if isempty(self.datalib),self.datalib=cell(fid_num,1);end
+            if isempty(self.X_init),self.X_init=cell(fid_num,1);end
+
+            for fid_idx=1:fid_num
+                data_lib=self.datalib{fid_idx};
+                X_init_fid=self.X_init{fid_idx};
+                sample_num_init_fid=self.sample_num_init(fid_idx);
+                objcon_fcn=objcon_fcn_list{fid_idx};
+
+                if isempty(data_lib)
+                    if isempty(self.datalib_filestr),filestr=[];
+                    else,filestr=[self.datalib_filestr,num2str(fid_idx,'_%d')];end
+                    data_lib=self.datalibGet(vari_num,low_bou,up_bou,self.con_torl,filestr);
+                end
+
+                if size(data_lib.X,1) < sample_num_init_fid
+                    if isempty(X_init_fid)
+                        % use latin hypercube method to get enough initial sample x_list
+                        sample_num=min(sample_num_init_fid-size(data_lib.X,1),self.NFE_max-self.dataoptim.NFE*cost_list(fid_idx));
+                        X_init_fid=lhsdesign(sample_num,vari_num,'iterations',50,'criterion','maximin').*(up_bou-low_bou)+low_bou;
+                    end
+
+                    % updata data lib by x_list
+                    data_lib=self.sample(data_lib,objcon_fcn,X_init_fid,cost_list(fid_idx),fid_idx);
+                end
+
+                self.datalib{fid_idx}=data_lib;
+                self.X_init{fid_idx}=X_init_fid;
+            end
+
+            % detech expensive constraints
+            if ~isempty(self.datalib{end}.Vio)
+                self.FLAG_CON=true(1);
+            else
+                self.FLAG_CON=false(1);
+            end
         end
 
         function [datalib,X,Obj,Con,Coneq,Vio,repeat_idx]=sample...
                 (self,datalib,objcon_fcn,X_add,cost,fidelity)
             % find best result to record
             %
-            add_torl=self.option_optim.add_torl;
             if nargin < 6, fidelity=[];if nargin < 5, cost=[];end,end
             if isempty(fidelity), fidelity=1;end
             if isempty(cost), cost=1;end
@@ -301,16 +299,16 @@ classdef OptimKRGEGO < handle
                 else
                     dist=vecnorm(datalib.X-x_add,2,2);
                 end
-                if any(dist < add_torl)
-                    overlap_idx=find(dist < add_torl,1);
+                if any(dist < self.add_torl)
+                    overlap_idx=find(dist < self.add_torl,1);
                     repeat_idx(x_idx)=overlap_idx;
                     datalib_idx(x_idx)=overlap_idx;
                 else
                     datalib=self.datalibAdd(datalib,objcon_fcn,x_add);
 
                     % recode add information
-                    self.NFE=self.NFE+cost;
-                    self.Add_idx=[self.Add_idx;fidelity,size(datalib.X,1)];
+                    self.dataoptim.NFE=self.dataoptim.NFE+cost;
+                    self.dataoptim.Add_idx=[self.dataoptim.Add_idx;fidelity,size(datalib.X,1)];
                     datalib_idx(x_idx)=size(datalib.X,1);
                 end
             end
@@ -328,62 +326,90 @@ classdef OptimKRGEGO < handle
 
     % strategy function
     methods
-        function [x_infill,obj_fcn]=searchInfill(self,vari_num,low_bou,up_bou,x_init,obj_min,vio_min)
+        function [x_infill,fid_infill,obj_fid_fcn]=searchInfill...
+                (self,fid_num,vari_num,low_bou,up_bou,cost_list,x_init,obj_min,vio_min)
             % MSP, EI, PI, MSE, LCB infill criteria
             %
-            switch self.option_optim.criteria
-                case 'MSP'
-                    infill_fcn=@(x) self.obj_fcn_srgt(x);
-                case 'EI'
+
+            var_fid_fcn=self.Srgt_obj{1}.var_fid;
+            predict_list=self.Srgt_obj{1}.predict_list;
+
+            alpha_1_fcn=@(x,fid_idx) corrFcn(x,fid_idx,var_fid_fcn,predict_list);
+            alpah_3_fcn=@(x,fid_idx) costFcn(x,fid_idx,cost_list);
+            switch self.criteria
+                case 'AEI'
                     w_l=0.5;
                     infill_fcn=@(x) -EIFcn(x,self.obj_fcn_srgt,obj_min,w_l);
-                case 'PI'
-                    infill_fcn=@(x) -PIFcn(x,self.obj_fcn_srgt,obj_min);
-                case 'MSE'
-                    infill_fcn=@(x) -MSEFcn(x,self.obj_fcn_srgt);
-                case 'LCB'
-                    infill_fcn=@(x) LCBFcn(x,self.obj_fcn_srgt);
+
+                    % AEI=EI*alpha_1*alpah_2*alpah_3;
+                    infill_fcn=@(x,fid_idx) infill_fcn(x).*alpha_1_fcn(x,fid_idx).*alpah_3_fcn(x,fid_idx);
             end
 
-            obj_fcn=infill_fcn;
+            obj_fid_fcn=infill_fcn;
             con_fcn=[];
             if self.FLAG_CON
-                switch self.option_optim.constraint
+                switch self.constraint
                     case 'auto'
                         if (vio_min > 0)
-                            obj_fcn=@(x) -POFFcn(x,self.con_fcn_srgt);
+                            obj_fid_fcn=@(x,fid_idx) -POFFcn(x,self.con_fcn_srgt)...
+                                .*alpha_1_fcn(x,fid_idx).*alpah_3_fcn(x,fid_idx);
                         else
                             POF_fcn=@(x) POFFcn(x,self.con_fcn_srgt);
 
-                            obj_fcn=@(x) infill_fcn(x)*POF_fcn(x);
+                            obj_fid_fcn=@(x,fid_idx) infill_fcn(x,fid_idx)*POF_fcn(x);
                         end
                     case 'POF'
                         POF_fcn=@(x) POFFcn(x,self.con_fcn_srgt);
 
-                        obj_fcn=@(x) infill_fcn(x)*POF_fcn(x);
+                        obj_fid_fcn=@(x,fid_idx) infill_fcn(x,fid_idx)*POF_fcn(x);
                     case 'direct'
-                        obj_fcn=infill_fcn;
                         con_fcn=self.con_fcn_srgt;
                 end
             end
 
             problem.solver='fmincon';
-            problem.objective=obj_fcn;
             problem.x0=x_init;
             problem.lb=low_bou;
             problem.ub=up_bou;
             problem.nonlcon=con_fcn;
-            problem.options=self.option_optim.fmincon_option;
+            problem.options=self.fmincon_option;
             ms=MultiStart('Display','off');
             rs=CustomStartPointSet([x_init;lhsdesign(19,vari_num).*(up_bou-low_bou)+low_bou]);
-            [x_infill,~,exit_flag]=run(ms,problem,rs);
 
-            if (exit_flag == -2 && strcmp(self.option_optim.constraint,'auto')) ...
-                    || norm(x_infill-x_init) < self.option_optim.add_torl
-                problem.objective=infill_fcn;
-                problem.nonlcon=self.con_fcn_srgt;
-                rs=CustomStartPointSet([x_init;lhsdesign(19,vari_num).*(up_bou-low_bou)+low_bou]);
-                [x_infill,~,~]=run(ms,problem,rs);
+            % search each fidelity min infill value
+            x_infill_list=zeros(fid_num,vari_num);
+            fval_infill_list=zeros(fid_num,1);
+            for fid_idx=1:fid_num
+                obj_fcn=@(x) obj_fid_fcn(x,fid_idx);
+                problem.objective=obj_fcn;
+                [x_infill_list(fid_idx,:),fval_infill_list(fid_idx),exit_flag]=run(ms,problem,rs);
+
+                if (exit_flag == -2 && strcmp(self.constraint,'auto')) ...
+                        || norm(x_infill_list(fid_idx,:)-x_init) < self.add_torl
+                    obj_fcn=@(x) infill_fcn(x,fid_idx);
+                    problem.objective=obj_fcn;
+                    problem.nonlcon=self.con_fcn_srgt;
+                    rs=CustomStartPointSet([x_init;lhsdesign(19,vari_num).*(up_bou-low_bou)+low_bou]);
+                    [x_infill_list(fid_idx,:),fval_infill_list(fid_idx),~]=run(ms,problem,rs);
+
+                    % return to normal
+                    problem.nonlcon=con_fcn;
+                end
+            end
+
+            [~,fid_infill]=min(fval_infill_list);
+            x_infill=x_infill_list(fid_infill,:);
+
+            function alpha_1=corrFcn(x,fid_idx,var_fid_fcn,predict_list)
+                Cov_pred=var_fid_fcn(x,fid_idx);
+                [~,Var_pred_fid]=predict_list{fid_idx}(x);
+                [~,Var_pred]=predict_list{end}(x);
+                alpha_1=Cov_pred./sqrt(Var_pred_fid.*Var_pred);
+                alpha_1(Var_pred_fid < eps | Var_pred < eps)=0;
+            end
+
+            function alpha_3=costFcn(~,fid_idx,cost_list)
+                alpha_3=cost_list(end)/cost_list(fid_idx);
             end
 
             function EI=EIFcn(x,obj_fcn_srgt,obj_min_surr,w_l)
@@ -396,29 +422,11 @@ classdef OptimKRGEGO < handle
                 EI(obj_var < eps)=0;
             end
 
-            function PI=PIFcn(x,obj_fcn_srgt,obj_min_surr)
-                [obj_pred,obj_var]=obj_fcn_srgt(x);
-                obj_nomlz=(obj_min_surr-obj_pred)/sqrt(obj_var);
-                PI=normcdf(obj_nomlz);
-                PI(obj_var < eps)=0;
-            end
-
-            function MSE=MSEFcn(x,obj_fcn_srgt)
-                [~,obj_var]=obj_fcn_srgt(x);
-                MSE=obj_var;
-            end
-
-            function LCB=LCBFcn(x,obj_fcn_srgt)
-                [obj_pred,obj_var]=obj_fcn_srgt(x);
-                LCB=obj_pred-sqrt(obj_var);
-            end
-
             function POF=POFFcn(x,con_fcn_srgt)
                 % calculate feasible probability
                 %
                 POF=1;
                 [con_pred,~,con_var,~]=con_fcn_srgt(x);
-                con_var(con_var < eps)=eps;
                 con_nomlz=con_pred./sqrt(con_var);
                 if ~isempty(con_pred)
                     if all(con_pred > 0)
@@ -430,42 +438,12 @@ classdef OptimKRGEGO < handle
                 end
             end
         end
+
     end
 
     % auxiliary function
     methods(Static)
-        function [X_surr,Obj_surr,Con_surr,Coneq_surr,Vio_surr,...
-                Obj_max,Con_max,Coneq_max,Vio_max]=preSurrData...
-                (X,Obj,Con,Coneq,Vio,nomlz_fval)
-            % normalize data by max value in data
-            %
-            X_surr=X;
-            Obj_max=max(abs(Obj),[],1);
-            Obj_surr=Obj/Obj_max*nomlz_fval;
-            if ~isempty(Con)
-                Con_max=max(abs(Con),[],1);
-                Con_surr=Con./Con_max*nomlz_fval;
-            else
-                Con_max=[];
-                Con_surr=[];
-            end
-            if ~isempty(Coneq)
-                Coneq_max=max(abs(Coneq),[],1);
-                Coneq_surr=Coneq./Coneq_max*nomlz_fval;
-            else
-                Coneq_max=[];
-                Coneq_surr=[];
-            end
-            if ~isempty(Vio)
-                Vio_max=max(abs(Vio),[],1);
-                Vio_surr=Vio./Vio_max*nomlz_fval;
-            else
-                Vio_max=[];
-                Vio_surr=[];
-            end
-        end
-
-        function [obj_fcn_srgt,con_fcn_srgt,Srgt_obj,Srgt_con,Srgt_coneq]=getSrgtFcnKRG...
+        function [obj_fcn_srgt,con_fcn_srgt,Srgt_obj,Srgt_con,Srgt_coneq]=getSrgtFcnCoKRG...
                 (x_list,obj_list,con_list,coneq_list,Srgt_obj,Srgt_con,Srgt_coneq)
             % generate surrogate function of objective and constraints
             %
@@ -486,24 +464,24 @@ classdef OptimKRGEGO < handle
             % generate obj surrogate
             if isempty(Srgt_obj),Srgt_obj=cell(size(obj_list,2),1);end
             for obj_idx=1:size(obj_list,2)
-                Srgt_obj{obj_idx}=srgtKRG(x_list,obj_list(:,obj_idx),Srgt_obj{obj_idx});
+                Srgt_obj{obj_idx}=srgtExCoKRG(x_list,loadIdx(obj_list,obj_idx),Srgt_obj{obj_idx});
             end
 
             % generate con surrogate
-            if ~isempty(con_list)
+            if ~isempty(con_list{1})
                 if isempty(Srgt_con),Srgt_con=cell(size(con_list,2),1);end
                 for con_idx=1:size(con_list,2)
-                    Srgt_con{con_idx}=srgtKRG(x_list,con_list(:,con_idx),Srgt_con{con_idx});
+                    Srgt_con{con_idx}=srgtExCoKRG(x_list,loadIdx(con_list,con_idx),Srgt_con{con_idx});
                 end
             else
                 Srgt_con=[];
             end
 
             % generate coneq surrogate
-            if ~isempty(coneq_list)
+            if ~isempty(coneq_list{1})
                 if isempty(Srgt_coneq),Srgt_coneq=cell(size(coneq_list,2),1);end
                 for coneq_idx=1:size(coneq_list,2)
-                    Srgt_coneq{coneq_idx}=srgtKRG(x_list,coneq_list(:,coneq_idx),Srgt_coneq{coneq_idx});
+                    Srgt_coneq{coneq_idx}=srgtExCoKRG(x_list,loadIdx(coneq_list,coneq_idx),Srgt_coneq{coneq_idx});
                 end
             else
                 Srgt_coneq=[];
@@ -550,8 +528,16 @@ classdef OptimKRGEGO < handle
                     end
                 end
             end
-        end
 
+            function fval=loadIdx(fval_list,idx)
+                % load specific idx from cell
+                %
+                fval=cell(length(fval_list),1);
+                for fid_idx=1:length(fval_list)
+                    fval{fid_idx}=fval_list{fid_idx}(:,idx);
+                end
+            end
+        end
     end
 
     % data library function

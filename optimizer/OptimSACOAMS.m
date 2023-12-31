@@ -723,9 +723,9 @@ classdef OptimSACOAMS < handle
 
             if ~isempty(Con_MF)
                 con_number=size(Con_MF{1},2);
-                pred_funct_con_list=cell(1,con_number);
-                model_con_list=cell(1,con_number);
-                model_con_type_list=cell(1,con_number);
+                pred_funct_con_list=cell(con_num,1ber);
+                model_con_list=cell(con_num,1ber);
+                model_con_type_list=cell(con_num,1ber);
                 for con_idx=1:con_number
                     [pred_funct_con_list{con_idx},model_con_list{con_idx},model_con_type_list{con_idx}]=self.getBestModel...
                         (X_MF,{Con_MF{1}(:,con_idx),Con_MF{2}(:,con_idx)});
@@ -738,9 +738,9 @@ classdef OptimSACOAMS < handle
 
             if ~isempty(Coneq_MF)
                 coneq_number=size(Coneq_MF{1},2);
-                pred_funct_coneq=cell(1,coneq_number);
-                model_coneq_list=cell(1,coneq_number);
-                model_coneq_type_list=cell(1,coneq_number);
+                pred_funct_coneq=cell(coneq_num,1ber);
+                model_coneq_list=cell(coneq_num,1ber);
+                model_coneq_type_list=cell(coneq_num,1ber);
                 for coneq_idx=1:size(Coneq_MF,2)
                     [pred_funct_coneq{coneq_idx},model_coneq_list{coneq_idx},model_coneq_type_list{coneq_idx}]=self.getBestModel...
                         (X_MF,{Coneq_MF{1}(:,coneq_idx),Coneq_MF{2}(:,coneq_idx)});

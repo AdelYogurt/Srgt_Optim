@@ -102,19 +102,19 @@ classdef OptimSACORS < handle
                 problem=varargin{1};
                 if isstruct(problem)
                     prob_field=fieldnames(problem);
-                    if ~contains(prob_field,'objcon_fcn'), error('OptimRBFCDE.optimize: input problem lack objcon_fcn'); end
+                    if ~contains(prob_field,'objcon_fcn'), error('OptimSACORS.optimize: input problem lack objcon_fcn'); end
                     objcon_fcn=problem.objcon_fcn;
-                    if ~contains(prob_field,'vari_num'), error('OptimRBFCDE.optimize: input problem lack vari_num'); end
-                    if ~contains(prob_field,'low_bou'), error('OptimRBFCDE.optimize: input problem lack low_bou'); end
-                    if ~contains(prob_field,'up_bou'), error('OptimRBFCDE.optimize: input problem lack up_bou'); end
+                    if ~contains(prob_field,'vari_num'), error('OptimSACORS.optimize: input problem lack vari_num'); end
+                    if ~contains(prob_field,'low_bou'), error('OptimSACORS.optimize: input problem lack low_bou'); end
+                    if ~contains(prob_field,'up_bou'), error('OptimSACORS.optimize: input problem lack up_bou'); end
                 else
                     prob_method=methods(problem);
-                    if ~contains(prob_method,'objcon_fcn'), error('OptimRBFCDE.optimize: input problem lack objcon_fcn'); end
+                    if ~contains(prob_method,'objcon_fcn'), error('OptimSACORS.optimize: input problem lack objcon_fcn'); end
                     objcon_fcn=@(x) problem.objcon_fcn(x);
                     prob_pro=properties(problem);
-                    if ~contains(prob_pro,'vari_num'), error('OptimRBFCDE.optimize: input problem lack vari_num'); end
-                    if ~contains(prob_pro,'low_bou'), error('OptimRBFCDE.optimize: input problem lack low_bou'); end
-                    if ~contains(prob_pro,'up_bou'), error('OptimRBFCDE.optimize: input problem lack up_bou'); end
+                    if ~contains(prob_pro,'vari_num'), error('OptimSACORS.optimize: input problem lack vari_num'); end
+                    if ~contains(prob_pro,'low_bou'), error('OptimSACORS.optimize: input problem lack low_bou'); end
+                    if ~contains(prob_pro,'up_bou'), error('OptimSACORS.optimize: input problem lack up_bou'); end
                 end
                 vari_num=problem.vari_num;
                 low_bou=problem.low_bou;
@@ -871,14 +871,14 @@ classdef OptimSACORS < handle
             if isempty(Best_idx)
                 Best_idx=1;
             else
-                if isempty(vio) || vio == 0
+                if isempty(datalib.Vio)
                     if obj <= datalib.Obj(Best_idx(end))
                         Best_idx=[Best_idx;size(datalib.X,1)];
                     else
                         Best_idx=[Best_idx;Best_idx(end)];
                     end
                 else
-                    if vio <= datalib.Vio(Best_idx(end))
+                    if vio < datalib.Vio(Best_idx(end)) || (obj <= datalib.Obj(Best_idx(end)) && vio == 0)
                         Best_idx=[Best_idx;size(datalib.X,1)];
                     else
                         Best_idx=[Best_idx;Best_idx(end)];

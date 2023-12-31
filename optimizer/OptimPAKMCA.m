@@ -107,19 +107,19 @@ classdef OptimPAKMCA < handle
                 problem=varargin{1};
                 if isstruct(problem)
                     prob_field=fieldnames(problem);
-                    if ~contains(prob_field,'objcon_fcn'), error('OptimRBFCDE.optimize: input problem lack objcon_fcn'); end
+                    if ~contains(prob_field,'objcon_fcn'), error('OptimPAKMCA.optimize: input problem lack objcon_fcn'); end
                     objcon_fcn=problem.objcon_fcn;
-                    if ~contains(prob_field,'vari_num'), error('OptimRBFCDE.optimize: input problem lack vari_num'); end
-                    if ~contains(prob_field,'low_bou'), error('OptimRBFCDE.optimize: input problem lack low_bou'); end
-                    if ~contains(prob_field,'up_bou'), error('OptimRBFCDE.optimize: input problem lack up_bou'); end
+                    if ~contains(prob_field,'vari_num'), error('OptimPAKMCA.optimize: input problem lack vari_num'); end
+                    if ~contains(prob_field,'low_bou'), error('OptimPAKMCA.optimize: input problem lack low_bou'); end
+                    if ~contains(prob_field,'up_bou'), error('OptimPAKMCA.optimize: input problem lack up_bou'); end
                 else
                     prob_method=methods(problem);
-                    if ~contains(prob_method,'objcon_fcn'), error('OptimRBFCDE.optimize: input problem lack objcon_fcn'); end
+                    if ~contains(prob_method,'objcon_fcn'), error('OptimPAKMCA.optimize: input problem lack objcon_fcn'); end
                     objcon_fcn=@(x) problem.objcon_fcn(x);
                     prob_pro=properties(problem);
-                    if ~contains(prob_pro,'vari_num'), error('OptimRBFCDE.optimize: input problem lack vari_num'); end
-                    if ~contains(prob_pro,'low_bou'), error('OptimRBFCDE.optimize: input problem lack low_bou'); end
-                    if ~contains(prob_pro,'up_bou'), error('OptimRBFCDE.optimize: input problem lack up_bou'); end
+                    if ~contains(prob_pro,'vari_num'), error('OptimPAKMCA.optimize: input problem lack vari_num'); end
+                    if ~contains(prob_pro,'low_bou'), error('OptimPAKMCA.optimize: input problem lack low_bou'); end
+                    if ~contains(prob_pro,'up_bou'), error('OptimPAKMCA.optimize: input problem lack up_bou'); end
                 end
                 vari_num=problem.vari_num;
                 low_bou=problem.low_bou;
@@ -171,9 +171,9 @@ classdef OptimPAKMCA < handle
             else,result_Vio=[];end
             con_best=[];coneq_best=[];vio_best=[];
 
-            self.Srgt_obj=repmat({self.KRG_option},1,obj_num);
-            self.Srgt_con=repmat({self.KRG_option},1,con_num);
-            self.Srgt_coneq=repmat({self.KRG_option},1,coneq_num);
+            self.Srgt_obj=repmat({self.KRG_option},obj_num,1);
+            self.Srgt_con=repmat({self.KRG_option},con_num,1);
+            self.Srgt_coneq=repmat({self.KRG_option},coneq_num,1);
             self.Srgt_ks={self.KRG_option};
 
             self.dataoptim.iter=self.dataoptim.iter+1;
@@ -449,7 +449,7 @@ classdef OptimPAKMCA < handle
             if ~isempty(con_list)
                 if isempty(Srgt_con),Srgt_con=cell(size(con_list,2),1);end
                 for con_idx=1:size(con_list,2)
-                    Srgt_con{con_idx}=srgtKRG(x_list,con_list(:,con_idx));
+                    Srgt_con{con_idx}=srgtKRG(x_list,con_list(:,con_idx),Srgt_con{con_idx});
                 end
             else
                 Srgt_con=[];
@@ -459,7 +459,7 @@ classdef OptimPAKMCA < handle
             if ~isempty(coneq_list)
                 if isempty(Srgt_coneq),Srgt_coneq=cell(size(coneq_list,2),1);end
                 for coneq_idx=1:size(coneq_list,2)
-                    Srgt_coneq{coneq_idx}=srgtKRG(x_list,coneq_list(:,coneq_idx));
+                    Srgt_coneq{coneq_idx}=srgtKRG(x_list,coneq_list(:,coneq_idx),Srgt_coneq{coneq_idx});
                 end
             else
                 Srgt_coneq=[];
@@ -558,14 +558,14 @@ classdef OptimPAKMCA < handle
             if isempty(Best_idx)
                 Best_idx=1;
             else
-                if isempty(vio) || vio == 0
+                if isempty(datalib.Vio)
                     if obj <= datalib.Obj(Best_idx(end))
                         Best_idx=[Best_idx;size(datalib.X,1)];
                     else
                         Best_idx=[Best_idx;Best_idx(end)];
                     end
                 else
-                    if vio <= datalib.Vio(Best_idx(end))
+                    if vio < datalib.Vio(Best_idx(end)) || (obj <= datalib.Obj(Best_idx(end)) && vio == 0)
                         Best_idx=[Best_idx;size(datalib.X,1)];
                     else
                         Best_idx=[Best_idx;Best_idx(end)];

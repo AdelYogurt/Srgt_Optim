@@ -100,7 +100,7 @@ classdef Benchmark
         end
 
         function obj=singleHIMObj(x)
-            % Rosenbrock problem
+            % HIM problem
             %
             x1=x(:,1);
             x2=x(:,2);
@@ -136,6 +136,18 @@ classdef Benchmark
             x_best=[0,0];obj_best=-2;
         end
         
+        function obj=singleROS2DObj(x)
+            % 2D Rosenbrock function
+            %
+            obj=sum(100*(x(2:2)-x(1:1).^2).^2+(x(1:1)-1).^2);
+        end
+        function [vari_num,Aineq,Bineq,Aeq,Beq,low_bou,up_bou,x_best,obj_best]=singleROS2DPar()
+            vari_num=2;low_bou=zeros(1,2);up_bou=ones(1,2);
+            Aineq=[];Bineq=[];Aeq=[];Beq=[];
+            x_best=[1,1];obj_best=0;
+        end
+
+
         function obj=singleBRObj(x)
             % Branin function
             %
@@ -231,15 +243,15 @@ classdef Benchmark
             obj_best=-9.3361;
         end
 
-        function obj=singleROSObj(x)
-            % Rosenbrock problem
+        function obj=singleROS4DObj(x)
+            % modified Rosenbrock problem
             %
             obj=sum((100*(x(2:4)-x(1:3).^2).^2-(x(1:3)-1).^2).^2);
         end
-        function obj=singleROSObjLF(x)
+        function obj=singleROS4DObjLF(x)
             obj=sum((100*(0.5*x(2:4)-0.6*x(1:3).^2).^2-(0.5*x(1:3)-0.5).^2).^2);
         end
-        function [vari_num,Aineq,Bineq,Aeq,Beq,low_bou,up_bou,x_best,obj_best]=singleROSPar()
+        function [vari_num,Aineq,Bineq,Aeq,Beq,low_bou,up_bou,x_best,obj_best]=singleROS4DPar()
             vari_num=4;
             Aineq=[];
             Bineq=[];
@@ -300,12 +312,12 @@ classdef Benchmark
         end
 
         % vari_num=10
-        function obj=singleR10Obj(x)
+        function obj=singleROS10DObj(x)
             % 10D Rosenbrock function
             %
             obj=sum(100*(x(2:10)-x(1:9).^2).^2+(x(1:9)-1).^2);
         end
-        function [vari_num,Aineq,Bineq,Aeq,Beq,low_bou,up_bou,x_best,obj_best]=singleR10Par()
+        function [vari_num,Aineq,Bineq,Aeq,Beq,low_bou,up_bou,x_best,obj_best]=singleROS10DPar()
             vari_num=10;low_bou=zeros(1,10);up_bou=ones(1,10);
             Aineq=[];Bineq=[];Aeq=[];Beq=[];
             x_best=[1,1,1,1,1,1,1,1,1,1];obj_best=0;
@@ -483,15 +495,9 @@ classdef Benchmark
             obj=(x(:,1)-10).^3+(x(:,2)-20).^3;
         end
         function [vari_num,Aineq,Bineq,Aeq,Beq,low_bou,up_bou,x_best,obj_best]=singleG06Par()
-            vari_num=2;
-            Aineq=[];
-            Bineq=[];
-            Aeq=[];
-            Beq=[];
-            low_bou=[13,0];
-            up_bou=[100,100];
-            x_best=[14.0950;0.8430]; 
-            obj_best=-6.9618e+03;
+            vari_num=2;low_bou=[13,0];up_bou=[100,100];
+            Aineq=[];Bineq=[];Aeq=[];Beq=[];
+            x_best=[14.0950,0.8430];obj_best=-6.9618e+03;
         end
 
         % vari_num=4
@@ -541,7 +547,7 @@ classdef Benchmark
             Beq=[];
             low_bou=[0,0,0,0];
             up_bou=[1,1,50,240];
-            x_best=[0.7276;0.3596;37.6991;240.0000];
+            x_best=[0.7276,0.3596,37.6991,240.0000];
             obj_best=5804.45;
         end
 

@@ -39,8 +39,9 @@ if ~isfield(model_option,'optimize_option')
 end
 
 % Hierarchical Kriging option
-if ~isfield(model_option,'hyp_list'), model_option.('hyp_list')={};end
 if ~isfield(model_option,'model_list'), model_option.('model_list')={};end
+if ~isfield(model_option,'hyp_list'), model_option.('hyp_list')={};end
+if ~isfield(model_option,'reg_fcn'), model_option.('reg_fcn')=[];end
 
 if isnumeric(X_list),X_list={X_list};end;X_list=X_list(:);
 if isnumeric(Y_list),Y_list={Y_list};end;Y_list=Y_list(:);
@@ -51,13 +52,14 @@ model_list=model_option.('model_list');
 model_list=[model_list;repmat({[]},fid_num-length(model_list),1)];
 hyp_list=model_option.('hyp_list');
 hyp_list=[hyp_list;repmat({[]},fid_num-length(hyp_list),1)];
+reg_fcn=model_option.('reg_fcn');
 
 % generate initial Kriging
 fid_idx=1;
 X=X_list{fid_idx};
 Y=Y_list{fid_idx};
-hyp=hyp_list{fid_idx};
 model=model_list{fid_idx};
+hyp=hyp_list{fid_idx};
 
 if isempty(model)
     % generate initial model option
@@ -65,17 +67,7 @@ if isempty(model)
     model.('optimize_hyp')=model_option.('optimize_hyp');
     model.('simplify_hyp')=model_option.('simplify_hyp');
     model.('optimize_option')=model_option.('optimize_option');
-
-    [x_num,vari_num]=size(X);
-    % kernal function is exp(-X_sq/vari_num^2*exp(hyp))
-    if isempty(hyp), hyp=ones(1,vari_num);end
-    % if isempty(hyp), hyp=log(x_num^(1/vari_num)*vari_num)*ones(1,vari_num);end
     model.('hyp')=hyp;
-
-    stdD_X=std(X);stdD_X(stdD_X == 0)=1;
-    % regression function define
-    % reg_fcn=@(X) ones(size(X,1),1); % zero
-    reg_fcn=@(X) [ones(size(X,1),1),X-stdD_X]; % linear
     model.('reg_fcn')=reg_fcn;
 
     % train Kriging
@@ -92,8 +84,8 @@ while fid_idx < fid_num
     fid_idx=fid_idx+1;
     X=X_list{fid_idx};
     Y=Y_list{fid_idx};
-    hyp=hyp_list{fid_idx};
     model=model_list{fid_idx};
+    hyp=hyp_list{fid_idx};
 
     if isempty(model)
         % generate initial model option
@@ -101,11 +93,6 @@ while fid_idx < fid_num
         model.('optimize_hyp')=model_option.('optimize_hyp');
         model.('simplify_hyp')=model_option.('simplify_hyp');
         model.('optimize_option')=model_option.('optimize_option');
-
-        [x_num,vari_num]=size(X);
-        % kernal function is exp(-X_sq/vari_num^2*exp(hyp))
-        if isempty(hyp), hyp=ones(1,vari_num);end
-        % if isempty(hyp), hyp=log(x_num^(1/vari_num)*vari_num)*ones(1,vari_num);end
         model.('hyp')=hyp;
 
         % regression function define

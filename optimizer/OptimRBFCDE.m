@@ -733,14 +733,14 @@ classdef OptimRBFCDE < handle
             if isempty(Best_idx)
                 Best_idx=1;
             else
-                if isempty(vio) || vio == 0
+                if isempty(datalib.Vio)
                     if obj <= datalib.Obj(Best_idx(end))
                         Best_idx=[Best_idx;size(datalib.X,1)];
                     else
                         Best_idx=[Best_idx;Best_idx(end)];
                     end
                 else
-                    if vio <= datalib.Vio(Best_idx(end))
+                    if vio < datalib.Vio(Best_idx(end)) || (obj <= datalib.Obj(Best_idx(end)) && vio == 0)
                         Best_idx=[Best_idx;size(datalib.X,1)];
                     else
                         Best_idx=[Best_idx;Best_idx(end)];

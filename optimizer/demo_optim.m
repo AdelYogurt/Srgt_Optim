@@ -2,21 +2,21 @@ clc;
 clear;
 close all hidden;
 
-% unconstraint problem GF
-objcon_fcn=@(x) objconFcnGP(x);
-vari_num=2;low_bou=[-2,-2];up_bou=[2,2];
+% % unconstraint problem GF
+% objcon_fcn=@(x) objconFcnGP(x);
+% vari_num=2;low_bou=[-2,-2];up_bou=[2,2];
 
 % % constraint problem G06
 % objcon_fcn=@(x) objconFcnG06(x);
 % vari_num=2;low_bou=[13,0];up_bou=[100,100];
 
-NFE_max=300;iter_max=300;obj_torl=1e-6;con_torl=0;
+% NFE_max=300;iter_max=300;obj_torl=1e-6;con_torl=0;
 
 % optimizer=OptimFSRBF(NFE_max,iter_max,obj_torl,con_torl);
 % optimizer=OptimKRGCDE(NFE_max,iter_max,obj_torl,con_torl);
 % optimizer=OptimKRGEGO(NFE_max,iter_max,obj_torl,con_torl);
 % optimizer=OptimPAKMCA(NFE_max,iter_max,obj_torl,con_torl);
-optimizer=OptimRBFCDE(NFE_max,iter_max,obj_torl,con_torl);
+% optimizer=OptimRBFCDE(NFE_max,iter_max,obj_torl,con_torl);
 % optimizer=OptimSACORS(NFE_max,iter_max,obj_torl,con_torl);
 % optimizer=OptimTRARSM(NFE_max,iter_max,obj_torl,con_torl);
 
@@ -25,14 +25,14 @@ optimizer=OptimRBFCDE(NFE_max,iter_max,obj_torl,con_torl);
 % optimizer.datalib_filestr='data.mat';
 % optimizer.dataoptim_filestr='optim.mat';
 
-[x_best,obj_best,NFE,output]=optimizer.optimize(objcon_fcn,vari_num,low_bou,up_bou);
+% [x_best,obj_best,NFE,output]=optimizer.optimize(objcon_fcn,vari_num,low_bou,up_bou);
 
-datalib=output.datalib;
+% datalib=output.datalib;
 % plot(1:length(datalib.Obj),datalib.Obj(datalib.Best_idx),'o-')
 % line(1:length(datalib.Obj),datalib.Obj,'Marker','o','Color','g')
 % line(1:length(datalib.Vio),datalib.Vio,'Marker','o','Color','r')
 
-scatter(datalib.X(:,1),datalib.X(:,2));
+% scatter(datalib.X(:,1),datalib.X(:,2));
 
 function [obj,con,coneq]=objconFcnGP(x)
 % x_best=[0,-1];obj_best=3;

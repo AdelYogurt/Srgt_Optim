@@ -47,9 +47,9 @@ if ~isfield(model_option,'reg_fcn_list'), model_option.('reg_fcn_list')={};end
 fid_num=length(X_list);
 hyp_list=model_option.('hyp_list');
 hyp_list=[hyp_list;repmat({[]},fid_num-length(hyp_list),1)];
-reg_fcn_list=model_option.('hyp_list');
+reg_fcn_list=model_option.('reg_fcn_list');
 reg_fcn_list=[reg_fcn_list;repmat({[]},fid_num-length(reg_fcn_list),1)];
-model_list=cell(fid_num,1);
+predict_list=cell(fid_num,1);
 sigma_sq_list=zeros(fid_num,1);
 
 x_idx_list=zeros(fid_num,2);
@@ -94,10 +94,10 @@ for fid_idx=1:fid_num
     reg_fcn=reg_fcn_list{fid_idx};
     X=X_list{fid_idx};x_num=size(X,1);
 
-    % calculate reg
+    % regression function define
     if isempty(reg_fcn)
-%         reg_fcn=@(X) ones(size(X,1),1); % zero
-        reg_fcn=@(X) [ones(size(X,1),1),X-stdD_X]; % linear
+        reg_fcn=@(X) ones(size(X,1),1).*stdD_Y+aver_Y; % zero
+        % reg_fcn=@(X) [ones(size(X,1),1),X-stdD_X].*stdD_Y+aver_Y; % linear
     end
     reg_fcn_list{fid_idx}=reg_fcn;
     fval_reg_nomlz=(reg_fcn(X)-aver_Y)./stdD_Y;
@@ -153,7 +153,7 @@ for fid_idx=1:fid_num
     % calculate accumulate covariance
     Y_cum_nomlz=Y_total_nomlz(1:x_idx(2));
     if fid_idx == 1
-        cov_cum=cov*sigma_sq/stdD_Y^2;
+        cov_cum=cov*sigma_sq;
         F_reg_cum_nomlz=fval_reg_nomlz;
     else
         % extend covariance
@@ -169,18 +169,18 @@ for fid_idx=1:fid_num
             k=fid_jdx;
             % calculate each item of block
             for fid_kdx=1:fid_jdx
-                bi=k-fid_kdx+1;
-                theta_bi=exp(hyp_list{bi});
                 % calculate covariance
-                cov_item=zeros(x_num,x_jdx(2)-x_jdx(1)+1);
+                bi=k-fid_kdx+1;theta_bi=exp(hyp_list{bi});
+                cov_it=zeros(x_num,x_jdx(2)-x_jdx(1)+1);
                 for vari_idx=1:vari_num
-                    cov_item=cov_item+X_total_dis_sq(x_idx(1):x_idx(2),x_jdx(1):x_jdx(2),vari_idx)*theta_bi(vari_idx);
+                    cov_it=cov_it+X_total_dis_sq(x_idx(1):x_idx(2),x_jdx(1):x_jdx(2),vari_idx)*theta_bi(vari_idx);
                 end
-                cov_item=exp(-cov_item/vari_num^2);
-                rho_prod_k=1;
+                cov_it=exp(-cov_it/vari_num^2)*sigma_sq_list(bi);
+
+                rho_prod_k=1;bi=k-fid_kdx+1;
                 if bi < k,rho_prod_k=prod(rho_list(bi+1:k));end
                 rho_prod_l=prod(rho_list(bi+1:l));
-                cov_block=cov_block+rho_prod_k*rho_prod_l*cov_item*sigma_sq_list(bi)/stdD_Y^2;
+                cov_block=cov_block+rho_prod_k*rho_prod_l*cov_it;
             end
             cov_cum(x_idx(1):x_idx(2),x_jdx(1):x_jdx(2))=cov_block;
             cov_cum(x_jdx(1):x_jdx(2),x_idx(1):x_idx(2))=cov_block';
@@ -192,20 +192,20 @@ for fid_idx=1:fid_num
         k=fid_idx;
         % calculate each item of block
         for fid_kdx=1:fid_idx-1
-            bi=k-fid_kdx;
-            theta_bi=exp(hyp_list{bi});
             % calculate covariance
-            cov_item=zeros(x_num,x_jdx(2)-x_jdx(1)+1);
+            bi=k-fid_kdx;theta_bi=exp(hyp_list{bi});
+            cov_it=zeros(x_num,x_jdx(2)-x_jdx(1)+1);
             for vari_idx=1:vari_num
-                cov_item=cov_item+X_total_dis_sq(x_idx(1):x_idx(2),x_jdx(1):x_jdx(2),vari_idx)*theta_bi(vari_idx);
+                cov_it=cov_it+X_total_dis_sq(x_idx(1):x_idx(2),x_jdx(1):x_jdx(2),vari_idx)*theta_bi(vari_idx);
             end
-            cov_item=exp(-cov_item/vari_num^2);
-            rho_prod_k=1;
+            cov_it=exp(-cov_it/vari_num^2)*sigma_sq_list(bi);
+
+            rho_prod_k=1;bi=k-fid_kdx;
             if bi < k,rho_prod_k=prod(rho_list(bi+1:k));end
-            cov_block=cov_block+(rho_prod_k)^2*cov_item*sigma_sq_list(bi)/stdD_Y^2;
+            cov_block=cov_block+(rho_prod_k)^2*cov_it;
         end
-        cov_block=cov_block+cov*sigma_sq/stdD_Y^2;
-        cov_cum(x_idx(1):x_idx(2),x_idx(1):x_idx(2))=cov_block+eye(x_num)*((1000+x_total_num)*eps);
+        cov_block=cov_block+cov*sigma_sq;
+        cov_cum(x_idx(1):x_idx(2),x_idx(1):x_idx(2))=cov_block;
 
         % extend F_reg
         reg_num=size(fval_reg_nomlz,2);reg_cum_num=size(F_reg_cum_nomlz,2);
@@ -243,18 +243,26 @@ for fid_idx=1:fid_num
         fid_cum_num,vari_num,x_idx_cum,f_idx_cum,hyp_cum,rho_cum,sigma_sq_cum,...
         reg_fcn_cum,L_cov_cum,beta_cum,gamma_cum,inv_L_F_reg_cum,inv_FTcovF_cum);
 
-    model.predict=pred_fcn;
-    model_list{fid_idx}=model;
+    predict_list{fid_idx}=pred_fcn;
 end
+
+var_fid_fcn=@(X_pred,fid_l) varFidelity(X_pred,X_cum_nomlz,fid_l,fid_num,vari_num,...
+            aver_X,stdD_X,aver_Y,stdD_Y,...
+            x_idx_list,f_idx_list,hyp_list,rho_list,sigma_sq_list,...
+            reg_fcn_list,L_cov_cum,inv_L_F_reg_cum,inv_FTcovF_cum);
 
 model_CoKRG=model_option;
 
-model_CoKRG.X=X_total;
-model_CoKRG.Y=Y_total;
+model_CoKRG.X=X_list;
+model_CoKRG.Y=Y_list;
+model_CoKRG.reg_fcn_list=reg_fcn_list;
 model_CoKRG.hyp_list=hyp_list;
-model_CoKRG.model_list=model_list;
+model_CoKRG.rho_list=rho_list;
+model_CoKRG.sigma_sq_list=sigma_sq_list;
 
+model_CoKRG.predict_list=predict_list;
 model_CoKRG.predict=pred_fcn;
+model_CoKRG.var_fid=var_fid_fcn;
 
     function [fval,gradient]=probNLLBiasKRG(X_dis_sq,Y,Y_pred,x_num,vari_num,hyp,F_reg)
         % function to minimize negative likelihood
@@ -268,7 +276,8 @@ model_CoKRG.predict=pred_fcn;
         [R,L,Beta,sigma2,inv_L_F]=calCovKRG(X_dis_sq,Y_bias,x_num,vari_num,theta,F_reg);
 
         % calculation negative log likelihood
-        fval=x_num/2*log(sigma2)+sum(log(diag(L)));
+        if sigma2 == 0,fval=0;
+        else,fval=x_num/2*log(sigma2)+sum(log(diag(L)));end
 
         % calculate gradient
         if nargout > 1
@@ -336,9 +345,9 @@ model_CoKRG.predict=pred_fcn;
         sigma_sq=sum(inv_L_U.^2)/x_num; % sigma_sq=(U'*inv_cov*U)/x_num;
     end
 
-    function [Y_pred,Var_pred]=predictCoKRG(X_pred,X_cum_nomlz,aver_X,stdD_X,aver_Y,stdD_Y,...
-            fid_cum_num,vari_num,x_idx_cum,f_idx_cum,hyp_cum,rho_cum,sigma_sq_cum,...
-            reg_fcn_cum,L_cov_cum,beta_cum,gamma_cum,inv_L_F_reg_cum,inv_FTcovF_cum)
+    function [Y_pred,Var_pred]=predictCoKRG(X_pred,X_nomlz,aver_X,stdD_X,aver_Y,stdD_Y,...
+            fid_num,vari_num,x_idx_list,f_idx_list,hyp_list,rho_list,sigma_sq_list,...
+            reg_fcn_list,L_cov,beta,gamma,inv_L_F_reg,inv_FTcovF)
         % Co-Kriging surrogate predict function
         %
         % input:
@@ -348,95 +357,129 @@ model_CoKRG.predict=pred_fcn;
         % Y_pred (matrix): x_pred_num x 1 matrix, value
         % Var_pred (matrix): x_pred_num x 1 matrix, variance
         %
+        
+        % normalize data
+        X_pred_nomlz=(X_pred-aver_X)./stdD_X;
+        FR_pred_nomlz=calRegFid(X_pred,aver_Y,stdD_Y,rho_list,fid_num,reg_fcn_list,f_idx_list);
+
+        cov_pred=calCovFid(X_nomlz,X_pred_nomlz,fid_num,fid_num,vari_num,...
+            x_idx_list,hyp_list,rho_list,sigma_sq_list);
+
+        % predict base fval
+        Y_pred=FR_pred_nomlz*beta+cov_pred'*gamma;
+
+        % predict variance
+        inv_L_r=L_cov\cov_pred;
+        u_nomlz=(inv_L_F_reg)'*inv_L_r-FR_pred_nomlz';
+        Var_pred=0;
+        for fid_bdx=1:fid_num
+            rho_prod_kp=1;add_idx=fid_bdx;
+            if add_idx < fid_num,rho_prod_kp=prod(rho_list(add_idx+1:fid_num));end
+            Var_pred=Var_pred+(rho_prod_kp)^2*sigma_sq_list(add_idx);
+        end
+        Var_pred=Var_pred-inv_L_r'*inv_L_r+u_nomlz'*inv_FTcovF*u_nomlz;
+        Var_pred=diag(Var_pred);Var_pred(Var_pred < eps)=0;
+
+        % renormalize data
+        Y_pred=Y_pred*stdD_Y+aver_Y;
+    end
+
+    function fval_reg_pred_nomlz=calRegFid(X_pred,aver_Y,stdD_Y,rho_list,fid_idx,reg_fcn_list,f_idx_list)
+        % regression value
         [x_pred_num,~]=size(X_pred);
+        fval_reg_pred_nomlz=zeros(x_pred_num,f_idx_list(end));
+
+        % calculate each block of regression
+        for fid_bdx=1:fid_idx-1
+            f_bdx=f_idx_list(fid_bdx,:);
+            reg_fcn_b=reg_fcn_list{fid_bdx};
+            add_idx=fid_bdx;
+            rho_prod_kp=1;
+            if add_idx < fid_idx,rho_prod_kp=prod(rho_list(add_idx+1:fid_idx));end
+            fval_reg_pred_nomlz(:,f_bdx(1):f_bdx(2))=rho_prod_kp*(reg_fcn_b(X_pred)-aver_Y)/stdD_Y;
+        end
+        fid_bdx=fid_idx;
+        f_bdx=f_idx_list(fid_bdx,:);
+        reg_fcn_b=reg_fcn_list{fid_bdx};
+        fval_reg_pred_nomlz(:,f_bdx(1):f_bdx(2))=(reg_fcn_b(X_pred)-aver_Y)/stdD_Y;
+    end
+
+    function cov_pred=calCovFid(X_nomlz,X_pred_nomlz,fid_num,fid_l,vari_num,...
+            x_idx_list,hyp_list,rho_list,sigma_sq_list)
+        % predict covariance
+        [x_pred_num,~]=size(X_pred_nomlz);
+        cov_pred=zeros(x_idx_list(end),x_pred_num);
+
+        % calculate each block of covariance
+        for fid_bdx=1:fid_num
+            x_bdx=x_idx_list(fid_bdx,:);
+            cov_blockp=zeros(x_bdx(2)-x_bdx(1)+1,x_pred_num);
+
+            % calculate each item of block
+            fid_U=min(fid_bdx,fid_l);
+            for fid_tdx=1:fid_U
+                % calculate covariance
+                theta_bip=exp(hyp_list{fid_tdx});
+                cov_itp=zeros(x_bdx(2)-x_bdx(1)+1,x_pred_num);
+                for vari_i=1:vari_num
+                    cov_itp=cov_itp+(X_nomlz(x_bdx(1):x_bdx(2),vari_i)-X_pred_nomlz(:,vari_i)').^2*theta_bip(vari_i);
+                end
+                cov_itp=exp(-cov_itp/vari_num^2)*sigma_sq_list(fid_tdx);
+
+                U_idx=fid_bdx;
+                rho_prod_mp=1;
+                if fid_tdx < U_idx,rho_prod_mp=prod(rho_list(fid_tdx+1:U_idx));end
+                rho_prod_lp=1;
+                if fid_tdx < fid_l,rho_prod_lp=prod(rho_list(fid_tdx+1:fid_l));end
+
+                cov_blockp=cov_blockp+rho_prod_mp*rho_prod_lp*cov_itp;
+            end
+            cov_pred(x_bdx(1):x_bdx(2),:)=cov_blockp;
+        end
+    end
+
+    function [Var_pred]=varFidelity(X_pred,X_nomlz,fid_l,fid_num,vari_num,...
+            aver_X,stdD_X,aver_Y,stdD_Y,...
+            x_idx_list,f_idx_list,hyp_list,rho_list,sigma_sq_list,...
+            reg_fcn_list,L_cov,inv_L_F_reg,inv_FTcovF)
+        % calculate Posterior distribution of fidelity l
+        %
 
         % normalize data
         X_pred_nomlz=(X_pred-aver_X)./stdD_X;
 
-        % regression value
-        fval_reg_pred_nomlz=zeros(x_pred_num,f_idx_cum(end));
+        % predict regression
+        FR_nomlz_l=calRegFid(X_pred,aver_Y,stdD_Y,rho_list,fid_l,reg_fcn_list,f_idx_list);
+        FR_nomlz_m=calRegFid(X_pred,aver_Y,stdD_Y,rho_list,fid_num,reg_fcn_list,f_idx_list);
 
-        % calculate each block of regression
-        kp=fid_cum_num;
-        for fid_bdx=1:fid_cum_num-1
-            f_bdx=f_idx_cum(fid_bdx,:);
-            reg_fcn_b=reg_fcn_cum{fid_bdx};
-            add_idx=fid_bdx;
-            rho_prod_kp=1;
-            if add_idx < kp,rho_prod_kp=prod(rho_cum(add_idx+1:kp));end
-            fval_reg_pred_nomlz(:,f_bdx(1):f_bdx(2))=(rho_prod_kp)*...
-                (reg_fcn_b(X_pred)-aver_Y)/stdD_Y;
-        end
-        fid_bdx=fid_cum_num;
-        f_bdx=f_idx_cum(fid_bdx,:);
-        reg_fcn_b=reg_fcn_cum{fid_bdx};
-        fval_reg_pred_nomlz(:,f_bdx(1):f_bdx(2))=(reg_fcn_b(X_pred)-aver_Y)/stdD_Y;
-
-        % predict covariance
-        cov_pred=zeros(x_idx_cum(end),x_pred_num);
-
-        % calculate each block of covariance
-        for fid_bdx=1:fid_cum_num-1
-            x_bdx=x_idx_cum(fid_bdx,:);
-            cov_blockp=zeros(x_bdx(2)-x_bdx(1)+1,x_pred_num);
-            % calculate each item of block
-            kp=fid_bdx;
-            for fid_tdx=1:fid_bdx
-                add_idx=kp-fid_tdx+1;
-                theta_bip=exp(hyp_cum{add_idx});
-                % calculate covariance
-                cov_itemp=zeros(x_bdx(2)-x_bdx(1)+1,x_pred_num);
-                for vari_i=1:vari_num
-                    cov_itemp=cov_itemp+(X_cum_nomlz(x_bdx(1):x_bdx(2),vari_i)-X_pred_nomlz(:,vari_i)').^2*theta_bip(vari_i);
-                end
-                cov_itemp=exp(-cov_itemp/vari_num^2);
-                rho_prod_kp=1;
-                if add_idx < kp,rho_prod_kp=prod(rho_cum(add_idx+1:kp));end
-                rho_prod_lp=prod(rho_cum(add_idx+1:fid_cum_num));
-                cov_blockp=cov_blockp+rho_prod_kp*rho_prod_lp*cov_itemp*sigma_sq_cum(add_idx)/stdD_Y^2;
-            end
-            cov_pred(x_bdx(1):x_bdx(2),:)=cov_blockp;
-        end
-
-        % calculate center block
-        x_bdx=x_idx_cum(fid_cum_num,:);
-        cov_blockp=zeros(x_bdx(2)-x_bdx(1)+1,x_pred_num);
-        % calculate each item of block
-        kp=fid_cum_num;
-        for fid_tdx=1:fid_cum_num
-            add_idx=kp-fid_tdx+1;
-            theta_bip=exp(hyp_cum{add_idx});
-            % calculate covariance
-            cov_itemp=zeros(x_bdx(2)-x_bdx(1)+1,x_pred_num);
-            for vari_i=1:vari_num
-                cov_itemp=cov_itemp+(X_cum_nomlz(x_bdx(1):x_bdx(2),vari_i)-X_pred_nomlz(:,vari_i)').^2*theta_bip(vari_i);
-            end
-            cov_itemp=exp(-cov_itemp/vari_num^2);
-            rho_prod_kp=1;
-            if add_idx < kp,rho_prod_kp=prod(rho_cum(add_idx+1:kp));end
-            cov_blockp=cov_blockp+(rho_prod_kp)^2*cov_itemp*sigma_sq_cum(add_idx)/stdD_Y^2;
-        end
-        cov_pred(x_bdx(1):x_bdx(2),:)=cov_blockp;
-
-        % predict base fval
-        Y_pred=fval_reg_pred_nomlz*beta_cum+cov_pred'*gamma_cum;
+        % predict covaiance
+        cov_pred_l=calCovFid(X_nomlz,X_pred_nomlz,fid_num,fid_l,vari_num,...
+            x_idx_list,hyp_list,rho_list,sigma_sq_list);
+        cov_pred_m=calCovFid(X_nomlz,X_pred_nomlz,fid_num,fid_num,vari_num,...
+            x_idx_list,hyp_list,rho_list,sigma_sq_list);
 
         % predict variance
-        inv_L_r_cum=L_cov_cum\cov_pred;
-        u_cum=(inv_L_F_reg_cum)'*inv_L_r_cum-fval_reg_pred_nomlz';
-        Var_pred=0;
-        kp=fid_cum_num;
-        for fid_bdx=1:fid_cum_num-1
-            add_idx=fid_bdx;
-            rho_prod_kp=1;
-            if add_idx < kp,rho_prod_kp=prod(rho_cum(add_idx+1:kp));end
-            Var_pred=Var_pred+(rho_prod_kp)^2*sigma_sq_cum(add_idx)/stdD_Y^2;
-        end
-        Var_pred=Var_pred+sigma_sq_cum(fid_cum_num)/stdD_Y^2;
-        Var_pred=Var_pred+u_cum'*inv_FTcovF_cum*u_cum-inv_L_r_cum'*inv_L_r_cum;
-        Var_pred=diag(Var_pred)*stdD_Y^2;
+        inv_L_r_l=L_cov\cov_pred_l;
+        inv_L_r_m=L_cov\cov_pred_m;
+        u_nomlz_l=(inv_L_F_reg)'*inv_L_r_l-FR_nomlz_l';
+        u_nomlz_m=(inv_L_F_reg)'*inv_L_r_m-FR_nomlz_m';
 
-        % renormalize data
-        Y_pred=Y_pred*stdD_Y+aver_Y;
+        Var_pred=0;
+        for fid_bdx=1:fid_l
+            add_idx=fid_bdx;
+            rho_prod_lp=1;
+            if add_idx < fid_num, rho_prod_lp=prod(rho_list(add_idx+1:fid_l));end
+            rho_prod_mp=1;
+            if add_idx < fid_num, rho_prod_mp=prod(rho_list(add_idx+1:fid_num));end
+            Var_pred=Var_pred+rho_prod_lp*rho_prod_mp*sigma_sq_list(fid_bdx);
+        end
+
+        if fid_l == fid_num
+            Var_pred=Var_pred-inv_L_r_l'*inv_L_r_m+u_nomlz_l'*inv_FTcovF*u_nomlz_m;
+        else
+            % to satisfy that corr(A,B) is in range [0,1]
+            Var_pred=abs(Var_pred-inv_L_r_l'*inv_L_r_m);
+        end
+        Var_pred=diag(Var_pred);Var_pred(Var_pred < eps)=0;
     end
 end

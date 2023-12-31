@@ -25,7 +25,6 @@ close all hidden;
 
 % model_MF=srgtMtRBF(X_HF,Y_HF,[],X_LF,Y_LF,[]);
 % model_SF=srgtRBF(X_HF,Y_HF);
-% model_MF.Rsq()
 % surrogateVisualize(model_MF,low_bou,up_bou,[],[],[],figure(1));
 % surrogateVisualize(model_SF,low_bou,up_bou,[],[],[],figure(2));
 
@@ -44,8 +43,8 @@ close all hidden;
 % model_MF=srgtCoRBF(X_LF,Y_LF,X_HF,Y_HF);
 % model_SF=srgtRBF(X_HF,Y_HF);
 
-% [Y_pred_SF]=model_SF.predict(X);
-% [Y_pred_MF]=model_MF.predict(X);
+% [~,Y_pred_SF]=model_SF.predict(X);
+% [~,Y_pred_MF]=model_MF.predict(X);
 % line(X,Y_real_LF,'Color',[0.8500 0.3250 0.0980],'LineStyle','-','LineWidth',2,'Marker','x','MarkerSize',10,'MarkerIndices',1:10:101);
 % line(X,Y_real,'Color',[0 0.4470 0.7410],'LineStyle','-','LineWidth',2,'Marker','o','MarkerIndices',[1,41,61,101]);
 % line(X,Y_pred_SF,'Color',[0.9290 0.6940 0.1250],'LineStyle','--','LineWidth',2);

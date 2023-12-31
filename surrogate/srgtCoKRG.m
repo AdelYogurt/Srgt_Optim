@@ -61,16 +61,15 @@ Y_nomlz=[Y_LF_nomlz;Y_HF_nomlz];
 
 % all initial X_dis_sq
 X_dis_sq=zeros(x_num,x_num,vari_num);
-for variable_index=1:vari_num
-    X_dis_sq(:,:,variable_index)=...
-        (X_nomlz(:,variable_index)-X_nomlz(:,variable_index)').^2;
+for vari_idx=1:vari_num
+    X_dis_sq(:,:,vari_idx)=(X_nomlz(:,vari_idx)-X_nomlz(:,vari_idx)').^2;
 end
 X_LF_dis_sq=X_dis_sq(1:x_LF_num,1:x_LF_num,:);
 X_HF_dis_sq=X_dis_sq(x_LF_num+1:end,x_LF_num+1:end,:);
 
 % regression function define
-% reg_fcn=@(X) ones(size(X,1),1); % zero
-reg_fcn=@(X) [ones(size(X,1),1),X-stdD_X]; % linear
+reg_fcn=@(X) ones(size(X,1),1).*stdD_Y+aver_Y; % zero
+% reg_fcn=@(X) [ones(size(X,1),1),X-stdD_X].*stdD_Y+aver_Y; % linear
 
 hyp_bias=model_option.('hyp_bias');
 if isempty(hyp_bias),hyp_bias=[ones(1,vari_num),mean(Y_HF)/mean(Y_LF)];end
@@ -110,7 +109,7 @@ end
 % get parameter
 [cov_LF,L_cov_LF,beta_LF,sigma_sq_LF,inv_L_F_reg_LF,~,inv_L_U_LF]=calCovKRG...
     (X_LF_dis_sq,Y_LF_nomlz,x_LF_num,vari_num,exp(hyp_LF),fval_reg_nomlz_LF);
-% sigma_sq_LF=sigma_sq_LF*stdD_Y^2; % renormalize data
+sigma_sq_LF=sigma_sq_LF*stdD_Y^2; % renormalize data
 gamma_LF=L_cov_LF'\inv_L_U_LF;
 inv_FTcovF_LF=(inv_L_F_reg_LF'*inv_L_F_reg_LF)\eye(size(fval_reg_nomlz_LF,2));
 
@@ -141,7 +140,7 @@ if model_option.optimize_hyp
         up_bou_hyp=[4,10];
     else
         low_bou_hyp=[-4*ones(1,vari_num),-10];
-        up_bou_hyp=[4*ones(1,vari_num),-10];
+        up_bou_hyp=[4*ones(1,vari_num),10];
     end
 
     % [fval,gradient]=obj_fcn_hyp(hyp_bias)
@@ -156,23 +155,15 @@ end
 
 % get parameter
 Y_bias_nomlz=Y_HF_nomlz-hyp_bias(end)*Y_HF_pred_nomlz;
-[~,L_cov_bias,beta_bias,sigma_sq_bias,inv_L_F_reg_bias,~,inv_L_U_bias]=calCovKRG...
+[~,~,~,sigma_sq_bias,~,~,~]=calCovKRG...
     (X_HF_dis_sq,Y_bias_nomlz,x_HF_num,vari_num,exp(hyp_bias),fval_reg_nomlz_bias);
-% sigma_sq_bias=sigma_sq_bias*stdD_Y^2; % renormalize data
-gamma_bias=L_cov_bias'\inv_L_U_bias;
-inv_FTcovF_bias=(inv_L_F_reg_bias'*inv_L_F_reg_bias)\eye(size(fval_reg_nomlz_bias,2));
-
-% initialization predict function
-pred_fcn_bias=@(X_predict) predictKRG...
-    (X_predict,X_HF_nomlz,aver_X,stdD_X,aver_Y,stdD_Y,...
-    x_HF_num,vari_num,exp(hyp_bias),reg_fcn,...
-    L_cov_bias,beta_bias,sigma_sq_bias,gamma_bias,inv_L_F_reg_bias,inv_FTcovF_bias);
+sigma_sq_bias=sigma_sq_bias*stdD_Y^2; % renormalize data
 
 % get total model parameter
 fval_reg_nomlz=[
     fval_reg_nomlz_LF,zeros(size(fval_reg_nomlz_LF,1),size(fval_reg_nomlz_bias,2));
     fval_reg_nomlz_bias*hyp_bias(end),fval_reg_nomlz_bias;];
-[cov,L_cov,beta,~,inv_L_F_reg,~,inv_L_U]=calCovCoKRG...
+[~,L_cov,beta,~,inv_L_F_reg,~,inv_L_U]=calCovCoKRG...
     (X_dis_sq,Y_nomlz,x_num,x_HF_num,x_LF_num,vari_num,...
     exp(hyp_bias(1:end-1)),hyp_bias(end),exp(hyp_LF),...
     sigma_sq_bias,sigma_sq_LF,fval_reg_nomlz);
@@ -191,8 +182,7 @@ model_CoKRG.Y={Y_LF,Y_HF};
 model_CoKRG.hyp_LF=hyp_LF;
 model_CoKRG.hyp_bias=hyp_bias;
 
-model_CoKRG.predict_LF=pred_fcn_LF;
-model_CoKRG.predict_bias=pred_fcn_bias;
+model_CoKRG.predict_list={pred_fcn_LF;pred_fcn};
 
 model_CoKRG.predict=pred_fcn;
 
@@ -212,7 +202,8 @@ model_CoKRG.predict=pred_fcn;
         end
 
         % calculation negative log likelihood
-        fval=x_num/2*log(sigma2)+sum(log(diag(L)));
+        if sigma2 == 0,fval=0;
+        else,fval=x_num/2*log(sigma2)+sum(log(diag(L)));end
 
         if nargout > 1
             % calculate gradient
@@ -280,7 +271,8 @@ model_CoKRG.predict=pred_fcn;
         [R,L,Beta,sigma2,inv_L_F]=calCovKRG(X_dis_sq,Y_bias,x_num,vari_num,theta,F_reg);
 
         % calculation negative log likelihood
-        fval=x_num/2*log(sigma2)+sum(log(diag(L)));
+        if sigma2 == 0,fval=0;
+        else,fval=x_num/2*log(sigma2)+sum(log(diag(L)));end
 
         % calculate gradient
         if nargout > 1
@@ -333,16 +325,16 @@ model_CoKRG.predict=pred_fcn;
 
         % exp of x__x with theta H
         cov_H=zeros(x_HF_num);
-        for vari_index=1:vari_num
-            cov_H=cov_H+X_dis_sq(x_LF_num+1:end,x_LF_num+1:end,vari_index)*theta_bias(vari_index);
+        for vari_i=1:vari_num
+            cov_H=cov_H+X_dis_sq(x_LF_num+1:end,x_LF_num+1:end,vari_i)*theta_bias(vari_i);
         end
         cov_H=exp(-cov_H/vari_num)*sigma2_bias;
 
         % exp of x__x with theta L
         exp_disL=zeros(x_num);
-        for vari_index=1:vari_num
+        for vari_i=1:vari_num
             exp_disL=exp_disL+...
-                X_dis_sq(:,:,vari_index)*theta_LF(vari_index);
+                X_dis_sq(:,:,vari_i)*theta_LF(vari_i);
         end
         exp_disL=exp(-exp_disL/vari_num)*sigma2_LF;
         % times rho: HH to rho2, HL to rho, LL to 1
@@ -429,24 +421,21 @@ model_CoKRG.predict=pred_fcn;
 
         % distance sq of X_predict
         X_pred_dis_sq=zeros(x_num,x_pred_num,vari_num);
-        for vari_index=1:vari_num
-            X_pred_dis_sq(:,:,vari_index)=...
-                (X_nomlz(:,vari_index)-X_pred_nomlz(:,vari_index)').^2;
+        for vari_i=1:vari_num
+            X_pred_dis_sq(:,:,vari_i)=(X_nomlz(:,vari_i)-X_pred_nomlz(:,vari_i)').^2;
         end
 
         % bias
         exp_dis_bias=zeros(x_HF_num,x_pred_num);
-        for vari_index=1:vari_num
-            exp_dis_bias=exp_dis_bias+...
-                X_pred_dis_sq(x_LF_num+1:end,:,vari_index)*theta_bias(vari_index);
+        for vari_i=1:vari_num
+            exp_dis_bias=exp_dis_bias+X_pred_dis_sq(x_LF_num+1:end,:,vari_i)*theta_bias(vari_i);
         end
         exp_dis_bias=exp(-exp_dis_bias/vari_num);
 
         % LF
         exp_dis_LF=zeros(x_num,x_pred_num);
-        for vari_index=1:vari_num
-            exp_dis_LF=exp_dis_LF+...
-                X_pred_dis_sq(:,:,vari_index)*theta_LF(vari_index);
+        for vari_i=1:vari_num
+            exp_dis_LF=exp_dis_LF+X_pred_dis_sq(:,:,vari_i)*theta_LF(vari_i);
         end
         exp_dis_LF=exp(-exp_dis_LF/vari_num);
 
@@ -462,10 +451,10 @@ model_CoKRG.predict=pred_fcn;
         inv_L_r=L_cov\cov_pred;
         u=(inv_L_F_reg)'*inv_L_r-fval_reg_pred_nomlz';
         Var_pred=sigma_sq_LF*rho*rho+sigma_sq_bias+u'*inv_FTcovF*u-inv_L_r'*inv_L_r;
+        Var_pred=diag(Var_pred);
 
         % normalize data
         Y_pred=Y_pred*stdD_Y+aver_Y;
-        Var_pred=diag(Var_pred)*stdD_Y^2;
     end
 
 end

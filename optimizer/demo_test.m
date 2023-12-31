@@ -4,10 +4,8 @@ close all hidden;
 
 %% test case
 
-% benchmark=Benchmark();
-
 % benchmark_type='single';
-% benchmark_name='PVD4';
+% benchmark_name='G06';
 
 % benchmark_name_list={'SR7','PVD4','G01','G5MOD','G09','G16','G18'};
 % benchmark_name_list={'G07','G09','G19','G23'};
@@ -17,10 +15,9 @@ close all hidden;
 
 %% single run
 
-% [objcon_fcn,vari_num,low_bou,up_bou,obj_fcn,Aineq,Bineq,Aeq,Beq,nonlcon_fcn]=benchmark.get(benchmark_type,benchmark_name);
+% [objcon_fcn,vari_num,low_bou,up_bou,obj_fcn,Aineq,Bineq,Aeq,Beq,nonlcon_fcn]=Benchmark().get(benchmark_type,benchmark_name);
 
-% NFE_max=500;iter_max=500;obj_torl=1e-6;con_torl=0;
-
+% NFE_max=100;iter_max=200;obj_torl=1e-6;con_torl=0;
 % optimizer=OptimFSRBF(NFE_max,iter_max,obj_torl,con_torl);
 % optimizer=OptimKRGCDE(NFE_max,iter_max,obj_torl,con_torl);
 % optimizer=OptimKRGEGO(NFE_max,iter_max,obj_torl,con_torl);
@@ -33,6 +30,11 @@ close all hidden;
 % optimizer.dataKTS(load('source\G06.mat').datalib);
 
 % load('optim','optimizer');
+
+% optimizer.FLAG_CONV_JUDGE=true;
+% optimizer.FLAG_DRAW_FIGURE=true;
+% optimizer.datalib_filestr='data.mat';
+% optimizer.dataoptim_filestr='optim.mat';
 
 % [x_best,obj_best,NFE,output]=optimizer.optimize(objcon_fcn,vari_num,low_bou,up_bou);
 % datalib=optimizer.datalib;
