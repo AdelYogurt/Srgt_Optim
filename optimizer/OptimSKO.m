@@ -1,4 +1,4 @@
-classdef OptimKRGEGO < handle
+classdef OptimSKO < handle
     % Kriging model base efficient global optimization
     % include MSP, EI, PI, MSE, LCB infill criteria
     %
@@ -45,7 +45,7 @@ classdef OptimKRGEGO < handle
 
     % main function
     methods
-        function self=OptimKRGEGO(NFE_max,iter_max,obj_torl,con_torl)
+        function self=OptimSKO(NFE_max,iter_max,obj_torl,con_torl)
             % initialize self
             %
             if nargin < 4
@@ -85,9 +85,10 @@ classdef OptimKRGEGO < handle
             option_optim.criteria='EI'; % infill criteria
             option_optim.constraint='auto'; % constraint process method
             option_optim.fmincon_option=optimoptions...
-                ('fmincon','Display','none','Algorithm','sqp','ConstraintTolerance',0);
+                ('fmincon','Display','none','Algorithm','sqp','ConstraintTolerance',0,'FiniteDifferenceStepSize',1e-5);
             option_optim.ga_option=optimoptions...
                 ('ga','Display','none','HybridFcn','fmincon','ConstraintTolerance',0,'FunctionTolerance',1e-3);
+            option_optim.expert_fcn=[]; % function handle, @(x)
 
             self.option_optim=option_optim;
         end
@@ -102,19 +103,19 @@ classdef OptimKRGEGO < handle
                 problem=varargin{1};
                 if isstruct(problem)
                     prob_field=fieldnames(problem);
-                    if ~contains(prob_field,'objcon_fcn'), error('OptimKRGEGO.optimize: input problem lack objcon_fcn'); end
+                    if ~contains(prob_field,'objcon_fcn'), error('OptimSKO.optimize: input problem lack objcon_fcn'); end
                     objcon_fcn=problem.objcon_fcn;
-                    if ~contains(prob_field,'vari_num'), error('OptimKRGEGO.optimize: input problem lack vari_num'); end
-                    if ~contains(prob_field,'low_bou'), error('OptimKRGEGO.optimize: input problem lack low_bou'); end
-                    if ~contains(prob_field,'up_bou'), error('OptimKRGEGO.optimize: input problem lack up_bou'); end
+                    if ~contains(prob_field,'vari_num'), error('OptimSKO.optimize: input problem lack vari_num'); end
+                    if ~contains(prob_field,'low_bou'), error('OptimSKO.optimize: input problem lack low_bou'); end
+                    if ~contains(prob_field,'up_bou'), error('OptimSKO.optimize: input problem lack up_bou'); end
                 else
                     prob_method=methods(problem);
-                    if ~contains(prob_method,'objcon_fcn'), error('OptimKRGEGO.optimize: input problem lack objcon_fcn'); end
+                    if ~contains(prob_method,'objcon_fcn'), error('OptimSKO.optimize: input problem lack objcon_fcn'); end
                     objcon_fcn=@(x) problem.objcon_fcn(x);
                     prob_pro=properties(problem);
-                    if ~contains(prob_pro,'vari_num'), error('OptimKRGEGO.optimize: input problem lack vari_num'); end
-                    if ~contains(prob_pro,'low_bou'), error('OptimKRGEGO.optimize: input problem lack low_bou'); end
-                    if ~contains(prob_pro,'up_bou'), error('OptimKRGEGO.optimize: input problem lack up_bou'); end
+                    if ~contains(prob_pro,'vari_num'), error('OptimSKO.optimize: input problem lack vari_num'); end
+                    if ~contains(prob_pro,'low_bou'), error('OptimSKO.optimize: input problem lack low_bou'); end
+                    if ~contains(prob_pro,'up_bou'), error('OptimSKO.optimize: input problem lack up_bou'); end
                 end
                 vari_num=problem.vari_num;
                 low_bou=problem.low_bou;
@@ -154,6 +155,7 @@ classdef OptimKRGEGO < handle
             output.result_vio_best=result_Vio;
             output.NFE=self.NFE;
             output.Add_idx=self.Add_idx;
+            output.datalib=self.datalib;
         end
 
         function sampleInit(self,objcon_fcn,vari_num,low_bou,up_bou,sample_num_init)
@@ -331,6 +333,8 @@ classdef OptimKRGEGO < handle
         function [x_infill,obj_fcn]=searchInfill(self,vari_num,low_bou,up_bou,x_init,obj_min,vio_min)
             % MSP, EI, PI, MSE, LCB infill criteria
             %
+
+            % basical infill function
             switch self.option_optim.criteria
                 case 'MSP'
                     infill_fcn=@(x) self.obj_fcn_srgt(x);
@@ -345,8 +349,16 @@ classdef OptimKRGEGO < handle
                     infill_fcn=@(x) LCBFcn(x,self.obj_fcn_srgt);
             end
 
+            % expert knowledge
+            expert_fcn=self.option_optim.expert_fcn;
+            if ~isempty(expert_fcn)
+                infill_fcn=@(x) infill_fcn(x)*expert_fcn(x);
+            end
+
             obj_fcn=infill_fcn;
             con_fcn=[];
+
+            % constraint process
             if self.FLAG_CON
                 switch self.option_optim.constraint
                     case 'auto'

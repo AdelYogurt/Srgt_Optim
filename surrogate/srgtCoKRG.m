@@ -68,8 +68,8 @@ X_LF_dis_sq=X_dis_sq(1:x_LF_num,1:x_LF_num,:);
 X_HF_dis_sq=X_dis_sq(x_LF_num+1:end,x_LF_num+1:end,:);
 
 % regression function define
-reg_fcn=@(X) ones(size(X,1),1).*stdD_Y+aver_Y; % zero
-% reg_fcn=@(X) [ones(size(X,1),1),X-stdD_X].*stdD_Y+aver_Y; % linear
+% reg_fcn=@(X) ones(size(X,1),1).*stdD_Y+aver_Y; % zero
+reg_fcn=@(X) [ones(size(X,1),1),X-stdD_X].*stdD_Y+aver_Y; % linear
 
 hyp_bias=model_option.('hyp_bias');
 if isempty(hyp_bias),hyp_bias=[ones(1,vari_num),mean(Y_HF)/mean(Y_LF)];end

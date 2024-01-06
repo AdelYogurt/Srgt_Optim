@@ -20,7 +20,7 @@ close all hidden;
 % NFE_max=100;iter_max=200;obj_torl=1e-6;con_torl=0;
 % optimizer=OptimFSRBF(NFE_max,iter_max,obj_torl,con_torl);
 % optimizer=OptimKRGCDE(NFE_max,iter_max,obj_torl,con_torl);
-% optimizer=OptimKRGEGO(NFE_max,iter_max,obj_torl,con_torl);
+% optimizer=OptimSKO(NFE_max,iter_max,obj_torl,con_torl);
 % optimizer=OptimPAKMCA(NFE_max,iter_max,obj_torl,con_torl);
 % optimizer=OptimRBFCDE(NFE_max,iter_max,obj_torl,con_torl);
 % optimizer=OptimSACORS(NFE_max,iter_max,obj_torl,con_torl);
@@ -59,7 +59,7 @@ close all hidden;
 %     for repeat_idx=1:repeat_num
 %         % optimizer=OptimFSRBF(NFE_max,iter_max,obj_torl,con_torl);
 %         % optimizer=OptimKRGCDE(NFE_max,iter_max,obj_torl,con_torl);
-%         % optimizer=OptimKRGEGO(NFE_max,iter_max,obj_torl,con_torl);
+%         % optimizer=OptimSKO(NFE_max,iter_max,obj_torl,con_torl);
 %         % optimizer=OptimPAKMCA(NFE_max,iter_max,obj_torl,con_torl);
 %         % optimizer=OptimRBFCDE(NFE_max,iter_max,obj_torl,con_torl);
 %         % optimizer=OptimSACORS(NFE_max,iter_max,obj_torl,con_torl);

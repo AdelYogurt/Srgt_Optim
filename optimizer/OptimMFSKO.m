@@ -57,7 +57,7 @@ classdef OptimMFSKO < handle
         X_init=[]; % initial sample point
         criteria='AEI'; % infill criteria
         constraint='auto'; % constraint process method
-        fmincon_option=optimoptions('fmincon','Display','none','Algorithm','sqp','ConstraintTolerance',0);
+        fmincon_option=optimoptions('fmincon','Display','none','Algorithm','sqp','ConstraintTolerance',0,'FiniteDifferenceStepSize',1e-5);
 
         FLAG_CON;
         FLAG_MULTI_OBJ;

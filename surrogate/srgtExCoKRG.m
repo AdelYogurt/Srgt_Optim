@@ -96,8 +96,8 @@ for fid_idx=1:fid_num
 
     % regression function define
     if isempty(reg_fcn)
-        reg_fcn=@(X) ones(size(X,1),1).*stdD_Y+aver_Y; % zero
-        % reg_fcn=@(X) [ones(size(X,1),1),X-stdD_X].*stdD_Y+aver_Y; % linear
+        % reg_fcn=@(X) ones(size(X,1),1).*stdD_Y+aver_Y; % zero
+        reg_fcn=@(X) [ones(size(X,1),1),X-stdD_X].*stdD_Y+aver_Y; % linear
     end
     reg_fcn_list{fid_idx}=reg_fcn;
     fval_reg_nomlz=(reg_fcn(X)-aver_Y)./stdD_Y;
@@ -222,7 +222,7 @@ for fid_idx=1:fid_num
         f_idx=f_idx_list(fid_idx,:);
         F_reg_cum_nomlz(x_idx(1):x_idx(2),f_idx(1):f_idx(2))=fval_reg_nomlz;
     end
-    L_cov_cum=chol(cov_cum)';
+    L_cov_cum=chol(cov_cum+eye(size(cov_cum,1))*(1000*eps))';
     inv_L_F_reg_cum=L_cov_cum\F_reg_cum_nomlz;
     inv_L_Y_cum=L_cov_cum\Y_cum_nomlz;
     beta_cum=inv_L_F_reg_cum\inv_L_Y_cum; % beta=inv_FTRF*(F_reg'*inv_cov*Y);

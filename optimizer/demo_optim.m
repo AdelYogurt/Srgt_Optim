@@ -10,11 +10,11 @@ close all hidden;
 % objcon_fcn=@(x) objconFcnG06(x);
 % vari_num=2;low_bou=[13,0];up_bou=[100,100];
 
-% NFE_max=300;iter_max=300;obj_torl=1e-6;con_torl=0;
+% NFE_max=100;iter_max=300;obj_torl=1e-6;con_torl=0;
 
 % optimizer=OptimFSRBF(NFE_max,iter_max,obj_torl,con_torl);
 % optimizer=OptimKRGCDE(NFE_max,iter_max,obj_torl,con_torl);
-% optimizer=OptimKRGEGO(NFE_max,iter_max,obj_torl,con_torl);
+% optimizer=OptimSKO(NFE_max,iter_max,obj_torl,con_torl);
 % optimizer=OptimPAKMCA(NFE_max,iter_max,obj_torl,con_torl);
 % optimizer=OptimRBFCDE(NFE_max,iter_max,obj_torl,con_torl);
 % optimizer=OptimSACORS(NFE_max,iter_max,obj_torl,con_torl);
@@ -46,7 +46,7 @@ coneq=[];
 end
 
 function [obj,con,coneq]=objconFcnG06(x)
-% x_best=[14.0950;0.8430]; obj_best=-6.9618e+03;
+% x_best=[14.0950,0.8430]; obj_best=-6.9618e+03;
 %
 obj=(x(:,1)-10).^3+(x(:,2)-20).^3;
 g1=-(x(:,1)-5).^2-(x(:,2)-5).^2+100;
