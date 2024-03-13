@@ -131,6 +131,7 @@ classdef OptimMFSKO < handle
                 [X{fid_idx},Obj{fid_idx},Con{fid_idx},Coneq{fid_idx},Vio{fid_idx}]=self.datalibLoad(self.datalib{fid_idx},low_bou,up_bou);
             end
             obj_num=size(Obj{1},2);con_num=size(Con{1},2);coneq_num=size(Coneq{1},2);vio_num=size(Vio{1},2);
+            result_NFE=zeros(self.iter_max,1);
             result_X=zeros(self.iter_max,vari_num);
             result_Obj=zeros(self.iter_max,1);
             if con_num,result_Con=zeros(self.iter_max,con_num);
@@ -165,6 +166,7 @@ classdef OptimMFSKO < handle
                 [X{fid_infill},Obj{fid_infill},Con{fid_infill},Coneq{fid_infill},Vio{fid_infill}]=self.datalibLoad(self.datalib{fid_infill},low_bou,up_bou);
 
                 best_idx=self.datalib{end}.Best_idx(end);
+                result_NFE(self.dataoptim.iter,:)=self.dataoptim.NFE;
                 x_best=X{end}(best_idx,:);
                 result_X(self.dataoptim.iter,:)=x_best;
                 obj_best=Obj{end}(best_idx,:);
@@ -210,6 +212,7 @@ classdef OptimMFSKO < handle
                 end
             end
 
+            result_NFE(self.dataoptim.iter:end,:)=[];
             result_X(self.dataoptim.iter:end,:)=[];
             result_Obj(self.dataoptim.iter:end,:)=[];
             if con_num,result_Con(self.dataoptim.iter:end,:)=[];end
@@ -223,6 +226,7 @@ classdef OptimMFSKO < handle
             if ~isempty(result_Coneq),coneq_best=result_Coneq(end,:);end
             if ~isempty(result_Vio),vio_best=result_Vio(end,:);end
 
+            output.result_NFE=result_NFE;
             output.result_x_best=result_X;
             output.result_obj_best=result_Obj;
             output.result_con_best=result_Con;

@@ -150,7 +150,7 @@ classdef OptimKRGCDE < handle
             % step 3-7, adaptive samlping base on optimize strategy
 
             % initialize all data to begin optimize
-            [X,Obj,Con,Coneq,Vio]=self.datalibLoad(self.datalib,low_bou,up_bou);
+            [X,Obj,Con,Coneq,Vio]=self.datalibLoad(self.datalib);
             obj_num=size(Obj,2);con_num=size(Con,2);coneq_num=size(Coneq,2);vio_num=size(Vio,2);
             result_X=zeros(self.iter_max,vari_num);
             result_Obj=zeros(self.iter_max,1);
@@ -183,7 +183,7 @@ classdef OptimKRGCDE < handle
 
                 % updata infill point
                 [self.datalib,x_infill,obj_infill,con_infill,coneq_infill,vio_infill,repeat_idx]=self.sample(self.datalib,objcon_fcn,x_infill);
-                [X,Obj,Con,Coneq,Vio]=self.datalibLoad(self.datalib,low_bou,up_bou);
+                [X,Obj,Con,Coneq,Vio]=self.datalibLoad(self.datalib);
 
                 improve_flag=false;
                 if self.FLAG_CON
@@ -299,6 +299,10 @@ classdef OptimKRGCDE < handle
             % obtain datalib
             if isempty(self.datalib)
                 self.datalib=self.datalibGet(vari_num,low_bou,up_bou,self.con_torl,self.datalib_filestr);
+            else
+                self.datalib.low_bou=low_bou;
+                self.datalib.up_bou=up_bou;
+                self.datalib.filestr=self.datalib_filestr;
             end
 
             if size(self.datalib.X,1) < self.sample_num_init
@@ -795,11 +799,14 @@ classdef OptimKRGCDE < handle
             datalib.Best_idx=[];
         end
 
-        function [datalib,x,obj,con,coneq,vio]=datalibAdd(datalib,objcon_fcn,x)
+        function [datalib,x,obj,con,coneq,vio]=datalibAdd(datalib,objcon_fcn,x,obj,con,coneq)
             % add new x into data lib
             %
-            [obj,con,coneq]=objcon_fcn(x);vio=[]; % eval value
-
+            if ~isempty(objcon_fcn)
+                [obj,con,coneq]=objcon_fcn(x); % eval value
+            end
+            vio=[];
+            
             % calculate vio
             if ~isempty(con),vio=[vio,max(max(con-datalib.con_torl,0),[],2)];end
             if ~isempty(coneq),vio=[vio,max(abs(coneq-datalib.con_torl),[],2)];end

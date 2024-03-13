@@ -359,7 +359,7 @@ model_CoKRG.predict=pred_fcn;
         % basical bias
         beta=inv_L_F_reg\inv_L_Y; % beta=inv_FTRF*(F_reg'*inv_cov*Y);
         inv_L_U=inv_L_Y-inv_L_F_reg*beta; % U=Y-F_reg*beta;
-        sigma_sq=sum(inv_L_U.^2)/x_num; % sigma_sq=(U'*inv_cov*U)/x_num;
+        sigma_sq=(inv_L_U'*inv_L_U)/x_num; % sigma_sq=(U'*inv_cov*U)/x_num;
     end
 
     function [Y_pred,Var_pred]=predictKRG...

@@ -35,27 +35,35 @@ end
 
 if ~isfield(model_option,'hyp'), model_option.('hyp')=[];end
 if ~isfield(model_option,'reg_fcn'), model_option.('reg_fcn')=[];end
+if ~isfield(model_option,'cov_fcn'), model_option.('cov_fcn')=[];end
 
 % normalize data
 [x_num,vari_num]=size(X);
-aver_X=mean(X);
-stdD_X=std(X);stdD_X(stdD_X == 0)=1;
 aver_Y=mean(Y);
 stdD_Y=std(Y);stdD_Y(stdD_Y == 0)=1;
-X_nomlz=(X-aver_X)./stdD_X;
 Y_nomlz=(Y-aver_Y)./stdD_Y;
 
-% initial X_dis_sq
-X_dis_sq=zeros(x_num,x_num,vari_num);
-for vari_idx=1:vari_num
-    X_dis_sq(:,:,vari_idx)=(X_nomlz(:,vari_idx)-X_nomlz(:,vari_idx)').^2;
+% covarianve function define
+cov_fcn=model_option.('cov_fcn');
+if isempty(cov_fcn)
+    aver_X=mean(X);
+    stdD_X=std(X);stdD_X(stdD_X == 0)=1;
+    X_nomlz=(X-aver_X)./stdD_X;
+
+    % initial X_dis_sq
+    X_dis_sq=zeros(x_num,x_num,vari_num);
+    for vari_idx=1:vari_num
+        X_dis_sq(:,:,vari_idx)=(X_nomlz(:,vari_idx)-X_nomlz(:,vari_idx)').^2;
+    end
+
+    cov_fcn=@(X,X_pred,hyp) covExp(X,X_pred,hyp,aver_X,stdD_X,X_nomlz,X_dis_sq);
 end
 
 % regression function define
 reg_fcn=model_option.('reg_fcn');
 if isempty(reg_fcn)
-    % reg_fcn=@(X) ones(size(X,1),1).*stdD_Y+aver_Y; % zero
-    reg_fcn=@(X) [ones(size(X,1),1),X-stdD_X].*stdD_Y+aver_Y; % linear
+    if x_num < vari_num,reg_fcn=@(X) ones(size(X,1),1).*stdD_Y+aver_Y; % zero
+    else,reg_fcn=@(X) [ones(size(X,1),1),X-stdD_X].*stdD_Y+aver_Y;end % linear
 end
 
 % calculate reg
@@ -70,7 +78,7 @@ if isempty(hyp), hyp=ones(1,vari_num);end
 % if optimize hyperparameter
 if model_option.optimize_hyp
     simplify_hyp=model_option.('simplify_hyp');
-    obj_fcn_hyp=@(hyp) probNLLKRG(X_dis_sq,Y_nomlz,x_num,vari_num,hyp,fval_reg_nomlz);
+    obj_fcn_hyp=@(hyp) probNLLKRG(X_nomlz,Y_nomlz,x_num,vari_num,cov_fcn,hyp,fval_reg_nomlz);
 
     if simplify_hyp
         hyp=mean(hyp);
@@ -92,16 +100,16 @@ if model_option.optimize_hyp
 end
 
 % get parameter
-[~,L_cov,beta,sigma_sq,inv_L_F_reg,~,inv_L_U]=calCovKRG...
-    (X_dis_sq,Y_nomlz,x_num,vari_num,exp(hyp),fval_reg_nomlz);
+cov=cov_fcn(X_nomlz,[],hyp);
+[L_cov,beta,sigma_sq,inv_L_F_reg,~,inv_L_U]=calKRG(cov,Y_nomlz,x_num,fval_reg_nomlz);
 sigma_sq=sigma_sq*stdD_Y^2; % renormalize data
 gamma=L_cov'\inv_L_U;
 inv_FTcovF=(inv_L_F_reg'*inv_L_F_reg)\eye(size(fval_reg_nomlz,2));
 
 % initialization predict function
 pred_fcn=@(X_predict) predictKRG...
-    (X_predict,X_nomlz,aver_X,stdD_X,aver_Y,stdD_Y,...
-    x_num,vari_num,exp(hyp),reg_fcn,...
+    (X_predict,X,aver_Y,stdD_Y,...
+    reg_fcn,cov_fcn,hyp,...
     L_cov,beta,sigma_sq,gamma,inv_L_F_reg,inv_FTcovF);
 
 model_KRG=model_option;
@@ -115,22 +123,26 @@ model_KRG.gamma=gamma;
 
 model_KRG.predict=pred_fcn;
 
-    function [fval,gradient]=probNLLKRG(X_dis_sq,Y,x_num,vari_num,hyp,F_reg)
+    function [fval,gradient]=probNLLKRG(X,Y,x_num,vari_num,cov_fcn,hyp,F_reg)
         % function to minimize sigma_sq
         %
         hyp=min(hyp,up_bou_hyp);hyp=max(hyp,low_bou_hyp); % Prevent excessive hyp
-        theta=exp(hyp);
-        if simplify_hyp, theta=theta*ones(1,vari_num);end % extend hyp
-        [R,L,Beta,sigma2,inv_L_F]=calCovKRG...
-            (X_dis_sq,Y,x_num,vari_num,theta,F_reg);
+        if simplify_hyp, hyp=hyp*ones(1,vari_num);end % extend hyp
 
+        if nargout > 1
+            % require gradient
+            [R,dR_dhyp]=cov_fcn(X,[],hyp);
+        else
+            [R]=cov_fcn(X,[],hyp);
+        end
+        [L,Beta,sigma2,inv_L_F]=calKRG(R,Y,x_num,F_reg);
+
+        % calculation negative log likelihood
         if sigma2 == 0
             fval=0;gradient=zeros(vari_num,1);
             if simplify_hyp, gradient=0;end
             return;
         end
-
-        % calculation negative log likelihood
         fval=x_num/2*log(sigma2)+sum(log(diag(L)));
 
         if nargout > 1
@@ -141,9 +153,8 @@ model_KRG.predict=pred_fcn;
             Y_Fmiu=Y-F_reg*Beta;
 
             for vari_i=1:vari_num
-                dR_dtheta=-(X_dis_sq(:,:,vari_i).*R)*theta(vari_i)/vari_num^2;
                 dinv_R_dtheta=...
-                    -inv_R*dR_dtheta*inv_R;
+                    -inv_R*dR_dhyp(:,:,vari_i)*inv_R;
                 dinv_FTRF_dtheta=-inv_FTRF*...
                     (F_reg'*dinv_R_dtheta*F_reg)*...
                     inv_FTRF;
@@ -154,7 +165,7 @@ model_KRG.predict=pred_fcn;
                     Y_Fmiu'*dinv_R_dtheta*Y_Fmiu+...
                     Y_Fmiu'*inv_R*dU_dtheta)/x_num;
                 dlnsigma2_dtheta=1/sigma2*dsigma2_dtheta;
-                dlndetR=trace(inv_R*dR_dtheta);
+                dlndetR=trace(inv_R*dR_dhyp(:,:,vari_i));
 
                 gradient(vari_i)=x_num/2*dlnsigma2_dtheta+0.5*dlndetR;
             end
@@ -163,20 +174,10 @@ model_KRG.predict=pred_fcn;
         end
     end
 
-    function [cov,L_cov,beta,sigma_sq,inv_L_F_reg,inv_L_Y,inv_L_U]=calCovKRG...
-            (X_dis_sq,Y,x_num,vari_num,theta,F_reg)
+    function [L_cov,beta,sigma_sq,inv_L_F_reg,inv_L_Y,inv_L_U]=calKRG(cov,Y,x_num,F_reg)
         % kriging interpolation kernel function
         % Y(x)=beta+Z(x)
         %
-
-        % calculate covariance
-        cov=zeros(x_num,x_num);
-        for vari_i=1:vari_num
-            cov=cov+X_dis_sq(:,:,vari_i)*theta(vari_i);
-        end
-        cov=exp(-cov/vari_num^2)+eye(x_num)*((1000+x_num)*eps);
-
-        % coefficient calculation
         L_cov=chol(cov)'; % inv_cov=cov\eye(x_num);
         inv_L_F_reg=L_cov\F_reg;
         inv_L_Y=L_cov\Y; % inv_FTRF=(F_reg'*inv_cov*F_reg)\eye(size(F_reg,2));
@@ -184,12 +185,12 @@ model_KRG.predict=pred_fcn;
         % basical bias
         beta=inv_L_F_reg\inv_L_Y; % beta=inv_FTRF*(F_reg'*inv_cov*Y);
         inv_L_U=inv_L_Y-inv_L_F_reg*beta; % U=Y-F_reg*beta;
-        sigma_sq=sum(inv_L_U.^2)/x_num; % sigma_sq=(U'*inv_cov*U)/x_num;
+        sigma_sq=(inv_L_U'*inv_L_U)/x_num; % sigma_sq=(U'*inv_cov*U)/x_num;
     end
 
     function [Y_pred,Var_pred]=predictKRG...
-            (X_pred,X_nomlz,aver_X,stdD_X,aver_Y,stdD_Y,...
-            x_num,vari_num,theta,reg_fcn,...
+            (X_pred,X,aver_Y,stdD_Y,...
+            reg_fcn,cov_fcn,hyp,...
             L_cov,beta,sigma_sq,gamma,inv_L_F_reg,inv_FTcovF)
         % Kriging surrogate predict function
         %
@@ -200,20 +201,9 @@ model_KRG.predict=pred_fcn;
         % Y_pred (matrix): x_pred_num x 1 matrix, value
         % Var_pred (matrix): x_pred_num x 1 matrix, variance
         %
-        [x_pred_num,~]=size(X_pred);
 
-        % normalize data
-        X_pred_nomlz=(X_pred-aver_X)./stdD_X;
-
-        % regression value
-        fval_reg_pred_nomlz=(reg_fcn(X_pred)-aver_Y)./stdD_Y;
-
-        % predict covariance
-        cov_pred=zeros(x_num,x_pred_num);
-        for vari_i=1:vari_num
-            cov_pred=cov_pred+(X_nomlz(:,vari_i)-X_pred_nomlz(:,vari_i)').^2*theta(vari_i);
-        end
-        cov_pred=exp(-cov_pred/vari_num^2);
+        fval_reg_pred_nomlz=(reg_fcn(X_pred)-aver_Y)./stdD_Y; % regression value
+        cov_pred=cov_fcn(X,X_pred,hyp); % predict covariance
 
         % predict base fval
         Y_pred=fval_reg_pred_nomlz*beta+cov_pred'*gamma;
@@ -226,5 +216,37 @@ model_KRG.predict=pred_fcn;
 
         % renormalize data
         Y_pred=Y_pred*stdD_Y+aver_Y;
+    end
+
+    function [cov,dcov_dhyp]=covExp(X,X_pred,hyp,aver_X,stdD_X,X_nomlz,X_dis_sq)
+        % gaussian covariance
+        %
+        [x_n,vari_n]=size(X);
+        theta=exp(hyp);
+        if isempty(X_pred)
+            % self covariance
+            cov=zeros(x_n,x_n);
+            for vari_i=1:vari_n
+                cov=cov+X_dis_sq(:,:,vari_i)*theta(vari_i);
+            end
+            cov=exp(-cov/vari_n^2)+eye(x_n)*((1000+x_n)*eps);
+        else
+            x_pred_num=size(X_pred,1);
+            X_pred_nomlz=(X_pred-aver_X)./stdD_X; % normalize data
+
+            % predict covariance
+            cov=zeros(x_n,x_pred_num);
+            for vari_i=1:vari_n
+                cov=cov+(X_nomlz(:,vari_i)-X_pred_nomlz(:,vari_i)').^2*theta(vari_i);
+            end
+            cov=exp(-cov/vari_n^2);
+        end
+
+        if nargout > 1
+            dcov_dhyp=zeros(x_n,x_n,vari_n);
+            for vari_i=1:vari_n
+                dcov_dhyp(:,:,vari_i)=-(X_dis_sq(:,:,vari_i).*cov)*theta(vari_i)/vari_n^2;
+            end
+        end
     end
 end

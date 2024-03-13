@@ -2,6 +2,8 @@ clc;
 clear;
 close all hidden;
 
+addpath ../common/;
+
 %% single-fidelity surrogate model test
 
 % load('PK.mat');
@@ -12,25 +14,41 @@ close all hidden;
 % model_srgt=srgtRBFOpt(X,Y);
 % model_srgt=srgtRBFQdPg(X,Y);
 % model_srgt=srgtRSM(X,Y);
+
+% disp('predict error');
+% Y_err=model_srgt.predict(X_test)-Y_test;
+% disp(Y_err);
+
 % surrogateVisualize(model_srgt,low_bou,up_bou);
 
 %% multi-fidelity surrogate model test
 
 % load('HIM.mat')
-% model_MF=srgtCoKRG({X_LF,X_HF},{Y_LF,Y_HF});
+
+% model_MF=srgtCoKRG(X_LF,Y_LF,X_HF,Y_HF);
 % model_MF=srgtHrKRG({X_LF,X_HF},{Y_LF,Y_HF});
 % model_MF=srgtMtKRG({X_LF,X_HF},{Y_LF,Y_HF});
 % model_MF=srgtMtKRGQdPg(X_HF,Y_HF,{X_LF},{Y_LF});
 % model_SF=srgtKRG(X_HF,Y_HF);
 
-% model_MF=srgtMtRBF(X_HF,Y_HF,[],X_LF,Y_LF,[]);
+% model_MF=srgtCoRBF(X_LF,Y_LF,X_HF,Y_HF);
+% model_MF=srgtMmRBF(X_LF,Y_LF,X_HF,Y_HF);
 % model_SF=srgtRBF(X_HF,Y_HF);
+
+% disp('MF predict error');
+% Y_err=model_MF.predict(X_test)-Y_test;
+% disp(Y_err);
+
+% disp('SF predict error');
+% Y_err=model_SF.predict(X_test)-Y_test;
+% disp(Y_err);
+
 % surrogateVisualize(model_MF,low_bou,up_bou,[],[],[],figure(1));
 % surrogateVisualize(model_SF,low_bou,up_bou,[],[],[],figure(2));
 
 %% multi-fidelity surrogate model test
 
-% load('Forrester.mat')
+% load('FT.mat')
 
 % model_MF=srgtCoKRG(X_LF,Y_LF,X_HF,Y_HF);
 % model_MF=srgtExCoKRG({X_LF,X_HF},{Y_LF,Y_HF});
@@ -53,13 +71,10 @@ close all hidden;
 
 %% draw multi-fidelity surrogate model fit result
 
-% load('Forrester.mat')
+% load('FT.mat')
 % 
-% fig_hdl=figure(1);
-% fig_hdl.set('Position',[488,200,700,420])
-% 
-% model_MF=srgtMtRBF(X_HF,Y_HF,[],X_LF,Y_LF,[]);
-% model_SF=srgtRBF(X_HF,Y_HF,[]);
+% model_MF=srgtMmRBF(X_LF,Y_LF,X_HF,Y_HF);
+% model_SF=srgtRBF(X_HF,Y_HF);
 % 
 % Y_pred_MF=model_MF.predict(X);
 % Y_pred_SF=model_SF.predict(X);
@@ -67,6 +82,9 @@ close all hidden;
 % [x_MF_best,y_MF_best]=fmincon(@(X) model_MF.predict(X),0.7,[],[],[],[],0,1,[],optimoptions('fmincon','Display','none'));
 % [x_SF_best,y_SF_best]=fmincon(@(X) model_SF.predict(X),0.2,[],[],[],[],0,1,[],optimoptions('fmincon','Display','none'));
 % 
+% fig_hdl=figure(1);
+% fig_hdl.set('Position',[488,200,700,420])
+%
 % axes_hdl=subplot(1,2,1);
 % line_LF=line(X,Y_real_LF,'Color',[0.8500 0.3250 0.0980],'LineStyle','-','LineWidth',2,'Marker','x','MarkerSize',10,'MarkerIndices',1:10:101);
 % line_HF=line(X,Y_real,'Color',[0 0.4470 0.7410],'LineStyle','-','LineWidth',2,'Marker','o','MarkerIndices',[1,41,61,101]);
@@ -91,5 +109,5 @@ close all hidden;
 %     '\fontname{宋体}高精度模型及采样点','\fontname{宋体}低精度模型及采样点','\fontname{宋体}高精度模型全局最优值'});
 % lgd_hdl.set('Position',[0.01,0.87,0.98,0.1],'Orientation','horizontal','NumColumns',4,'FontSize',10)
 
-% print(fig_hdl,'MFRBF_RBF.emf','-dmeta');
-% print(fig_hdl,'MFRBF_RBF.png','-dpng');
+% print(fig_hdl,'MFRBF_RBF.emf','-dmeta','-r600');
+% print(fig_hdl,'MFRBF_RBF.png','-dpng','-r1200');

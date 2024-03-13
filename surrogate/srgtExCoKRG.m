@@ -83,7 +83,7 @@ end
 rho_list=zeros(fid_num,1);
 
 simplify_hyp=model_option.('simplify_hyp');
-pred_fcn=@(X_pred) zeros(size(X_pred));
+pred_fcn=@(X_pred) zeros(size(X_pred,1),1);
 
 % generate all fidelity Kriging
 for fid_idx=1:fid_num

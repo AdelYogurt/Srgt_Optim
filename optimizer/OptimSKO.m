@@ -138,7 +138,7 @@ classdef OptimSKO < handle
             self.sampleInit(objcon_fcn,vari_num,low_bou,up_bou,sample_num_init);
 
             % step 3, adaptive sample
-            [result_X,result_Obj,result_Con,result_Coneq,result_Vio]=self.sampleAdapt...
+            [result_X,result_Obj,result_Con,result_Coneq,result_Vio,result_NFE]=self.sampleAdapt...
                 (objcon_fcn,vari_num,low_bou,up_bou);
 
             x_best=result_X(end,:);
@@ -148,6 +148,7 @@ classdef OptimSKO < handle
             if ~isempty(result_Coneq),coneq_best=result_Coneq(end,:);end
             if ~isempty(result_Vio),vio_best=result_Vio(end,:);end
 
+            output.result_NFE=result_NFE;
             output.result_x_best=result_X;
             output.result_obj_best=result_Obj;
             output.result_con_best=result_Con;
@@ -188,7 +189,7 @@ classdef OptimSKO < handle
             end
         end
 
-        function [result_X,result_Obj,result_Con,result_Coneq,result_Vio]=sampleAdapt...
+        function [result_X,result_Obj,result_Con,result_Coneq,result_Vio,result_NFE]=sampleAdapt...
                 (self,objcon_fcn,vari_num,low_bou,up_bou)
             % adapt sample to optimize best point
             %
@@ -203,6 +204,7 @@ classdef OptimSKO < handle
 
             [X,Obj,Con,Coneq,Vio]=self.datalibLoad(self.datalib,low_bou,up_bou);
             obj_num=size(Obj,2);con_num=size(Con,2);coneq_num=size(Coneq,2);vio_num=size(Vio,2);
+            result_NFE=zeros(self.iter_max,1);
             result_X=zeros(self.iter_max,vari_num);
             result_Obj=zeros(self.iter_max,1);
             if con_num,result_Con=zeros(self.iter_max,con_num);
@@ -236,6 +238,7 @@ classdef OptimSKO < handle
                 [X,Obj,Con,Coneq,Vio]=self.datalibLoad(self.datalib,low_bou,up_bou);
 
                 best_idx=self.datalib.Best_idx(end);
+                result_NFE(iter,:)=self.NFE;
                 x_best=X(best_idx,:);
                 result_X(iter,:)=x_best;
                 obj_best=Obj(best_idx,:);
@@ -274,6 +277,7 @@ classdef OptimSKO < handle
                 end
             end
 
+            result_NFE(iter:end,:)=[];
             result_X(iter:end,:)=[];
             result_Obj(iter:end,:)=[];
             if con_num,result_Con(iter:end,:)=[];end
