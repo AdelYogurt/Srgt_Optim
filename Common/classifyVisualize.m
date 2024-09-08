@@ -95,14 +95,14 @@ switch dimension
             for x_index=1:grid_number+1
                 for y_index=1:grid_number+1
                     X_predict=([x_index,y_index]-1).*d_bou+low_bou;
-                    [predict_class(y_index,x_index),predict_probability(y_index,x_index)]=...
+                    [predict_class(y_index,x_index)]=...
                         predict_function(X_predict);
                 end
             end
         end
         contour(axes_handle,X_draw,Y_draw,predict_class);
         hold on;
-        contour(axes_handle,X_draw,Y_draw,predict_probability);
+%         contour(axes_handle,X_draw,Y_draw,predict_probability);
         hold off;
         xlabel('X');
         ylabel('Y');

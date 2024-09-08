@@ -22,7 +22,7 @@ close all hidden;
 
 % optimizer.FLAG_CONV_JUDGE=true;
 % optimizer.FLAG_DRAW_FIGURE=true;
-% optimizer.datalib_filestr='data.mat';
+% optimizer.datalib_filestr='lib.mat';
 % optimizer.dataoptim_filestr='optim.mat';
 
 % [x_best,obj_best,NFE,output]=optimizer.optimize(objcon_fcn,vari_num,low_bou,up_bou);

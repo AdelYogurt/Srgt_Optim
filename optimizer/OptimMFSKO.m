@@ -3,14 +3,13 @@ classdef OptimMFSKO < handle
     % include MSP, EI, PI, MSE, LCB infill criteria
     %
     % referance:
-    % [1] Ruan X, Jiang P, Zhou Q, et al. Variable-fidelity
-    % probability of improvement method for efficient global optimization
-    % of expensive black-box problems [J]. Structural and multidisciplinary
+    % [1] Ruan X, Jiang P, Zhou Q, et al. Variable-fidelity probability of
+    % improvement method for efficient global optimization of expensive
+    % black-box problems [J]. Structural and multidisciplinary
     % optimization, 2020, 62(6): 3021-52.
-    % [2] Huang D, Allen T T, Notz W I,
-    % et al. Sequential kriging optimization using multiple-fidelity
-    % evaluations [J]. Structural and multidisciplinary optimization, 2006,
-    % 32(5): 369-82.
+    % [2] Huang D, Allen T T, Notz W I, et al. Sequential kriging
+    % optimization using multiple-fidelity evaluations [J]. Structural and
+    % multidisciplinary optimization, 2006, 32(5): 369-82.
     %
     % Copyright 2023.2 Adel
     %
@@ -94,8 +93,6 @@ classdef OptimMFSKO < handle
             self.iter_max=iter_max;
             self.con_torl=con_torl;
             self.obj_torl=obj_torl;
-
-
         end
 
         function [x_best,obj_best,NFE,output,con_best,coneq_best,vio_best]=optimize(self,objcon_fcn_list,vari_num,low_bou,up_bou,cost_list)
@@ -468,14 +465,14 @@ classdef OptimMFSKO < handle
             % generate obj surrogate
             if isempty(Srgt_obj),Srgt_obj=cell(size(obj_list,2),1);end
             for obj_idx=1:size(obj_list,2)
-                Srgt_obj{obj_idx}=srgtExCoKRG(x_list,loadIdx(obj_list,obj_idx),Srgt_obj{obj_idx});
+                Srgt_obj{obj_idx}=srgtMFCoKRG(x_list,loadIdx(obj_list,obj_idx),Srgt_obj{obj_idx});
             end
 
             % generate con surrogate
             if ~isempty(con_list{1})
                 if isempty(Srgt_con),Srgt_con=cell(size(con_list,2),1);end
                 for con_idx=1:size(con_list,2)
-                    Srgt_con{con_idx}=srgtExCoKRG(x_list,loadIdx(con_list,con_idx),Srgt_con{con_idx});
+                    Srgt_con{con_idx}=srgtMFCoKRG(x_list,loadIdx(con_list,con_idx),Srgt_con{con_idx});
                 end
             else
                 Srgt_con=[];
@@ -485,7 +482,7 @@ classdef OptimMFSKO < handle
             if ~isempty(coneq_list{1})
                 if isempty(Srgt_coneq),Srgt_coneq=cell(size(coneq_list,2),1);end
                 for coneq_idx=1:size(coneq_list,2)
-                    Srgt_coneq{coneq_idx}=srgtExCoKRG(x_list,loadIdx(coneq_list,coneq_idx),Srgt_coneq{coneq_idx});
+                    Srgt_coneq{coneq_idx}=srgtMFCoKRG(x_list,loadIdx(coneq_list,coneq_idx),Srgt_coneq{coneq_idx});
                 end
             else
                 Srgt_coneq=[];
@@ -578,7 +575,7 @@ classdef OptimMFSKO < handle
 
             % calculate vio
             if ~isempty(con),vio=[vio,max(max(con-datalib.con_torl,0),[],2)];end
-            if ~isempty(coneq),vio=[vio,max(abs(coneq-datalib.con_torl),[],2)];end
+            if ~isempty(coneq),vio=[vio,max(max(abs(coneq)-datalib.con_torl,0),[],2)];end
             vio=max(vio,[],2);
 
             datalib.X=[datalib.X;x];

@@ -284,6 +284,7 @@ classdef OptimFSRBF < handle
                 end
             end
 
+            % cut result
             result_X(self.dataoptim.iter:end,:)=[];
             result_Obj(self.dataoptim.iter:end,:)=[];
             if con_num,result_Con(self.dataoptim.iter:end,:)=[];end
@@ -503,7 +504,7 @@ classdef OptimFSRBF < handle
             [con,coneq]=con_fcn_srgt(x);vio=[];
             % calculate vio
             if ~isempty(con),vio=[vio,max(max(con-con_torl,0),[],2)];end
-            if ~isempty(coneq),vio=[vio,max(abs(coneq-con_torl),[],2)];end
+            if ~isempty(coneq),vio=[vio,max(max(abs(coneq)-con_torl,0),[],2)];end
             vio=max(vio,[],2);
         end
 
@@ -609,7 +610,7 @@ classdef OptimFSRBF < handle
 
             % calculate vio
             if ~isempty(con),vio=[vio,max(max(con-datalib.con_torl,0),[],2)];end
-            if ~isempty(coneq),vio=[vio,max(abs(coneq-datalib.con_torl),[],2)];end
+            if ~isempty(coneq),vio=[vio,max(max(abs(coneq)-datalib.con_torl,0),[],2)];end
             vio=max(vio,[],2);
 
             datalib.X=[datalib.X;x];
@@ -666,6 +667,4 @@ end
 
 %% surrogate function
 
-
 %% machine learning
-

@@ -245,6 +245,7 @@ classdef OptimPAKMCA < handle
 
                     % Ks_surr=log(sum(exp(Con*self.dataoptim.rou),2))/self.dataoptim.rou; % modify
 
+                    % updata surrogate
                     self.Srgt_obj={srgtKRG(X,Obj,self.Srgt_obj{1})};
                     self.obj_fcn_srgt=@(x) self.Srgt_obj{1}.predict(x);
                     self.Srgt_ks={srgtKRG(X,Vio,self.Srgt_ks{1})};
@@ -296,6 +297,7 @@ classdef OptimPAKMCA < handle
                 end
             end
 
+            % cut result
             result_X(self.dataoptim.iter:end,:)=[];
             result_Obj(self.dataoptim.iter:end,:)=[];
             if con_num,result_Con(self.dataoptim.iter:end,:)=[];end
@@ -544,7 +546,7 @@ classdef OptimPAKMCA < handle
 
             % calculate vio
             if ~isempty(con),vio=[vio,max(max(con-datalib.con_torl,0),[],2)];end
-            if ~isempty(coneq),vio=[vio,max(abs(coneq-datalib.con_torl),[],2)];end
+            if ~isempty(coneq),vio=[vio,max(max(abs(coneq)-datalib.con_torl,0),[],2)];end
             vio=max(vio,[],2);
 
             datalib.X=[datalib.X;x];

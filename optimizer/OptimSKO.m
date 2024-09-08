@@ -277,6 +277,7 @@ classdef OptimSKO < handle
                 end
             end
 
+            % cut result
             result_NFE(iter:end,:)=[];
             result_X(iter:end,:)=[];
             result_Obj(iter:end,:)=[];
@@ -604,7 +605,7 @@ classdef OptimSKO < handle
 
             % calculate vio
             if ~isempty(con),vio=[vio,max(max(con-datalib.con_torl,0),[],2)];end
-            if ~isempty(coneq),vio=[vio,max(abs(coneq-datalib.con_torl),[],2)];end
+            if ~isempty(coneq),vio=[vio,max(max(abs(coneq)-datalib.con_torl,0),[],2)];end
             vio=max(vio,[],2);
 
             datalib.X=[datalib.X;x];

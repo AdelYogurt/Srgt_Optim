@@ -44,43 +44,40 @@ basis_fcn_linear=@(r,c) r+c;
 dRM_dc_fcn=@(x_number,X_dis,RBF_matrix,c) ones(x_number,x_number);
 obj_fcn=@(c) objRBF(X_dis,Y_nomlz,x_num,basis_fcn_linear,c,dRM_dc_fcn);
 
-[linear_c_backward,fval_backward,~]=optimCubicInterp(obj_fcn,-1e2,-1e2,1e2,1e-3);
-[linear_c_forward,fval_forward,~]=optimCubicInterp(obj_fcn,1e2,-1e2,1e2,1e-3);
-if fval_forward < fval_backward
-    c_linear=linear_c_forward;
-else
-    c_linear=linear_c_backward;
-end
+[linear_c_bwd,fval_bwd,~,~]=fminbnd(obj_fcn,-1e2,-1e-2,optimset('Display','none'));
+[linear_c_fwd,fval_fwd,~,~]=fminbnd(obj_fcn,1e-2,1e2,optimset('Display','none'));
+if fval_fwd < fval_bwd,c_linear=linear_c_fwd;
+else,c_linear=linear_c_bwd;end
 
 % gauss kernal function
 basis_fcn_gauss=@(r,c) exp(-c*r.^2);
-dRM_dc_fcn=@(x_number,X_dis,RBF_matrix,c) -X_dis.^2.*RBF_matrix;
+dRM_dc_fcn=@(x_num,r,RBF_matrix,c) -r.^2.*RBF_matrix;
 obj_fcn=@(c) objRBF(X_dis,Y_nomlz,x_num,basis_fcn_gauss,c,dRM_dc_fcn);
-[c_gauss,~,~,~]=optimCubicInterp(obj_fcn,c_initial,1e-2,1e2,1e-3);
+[c_gauss,~,~,~]=fminbnd(obj_fcn,1e-2,1e2,optimset('Display','none'));
 
 % spline kernal function
 basis_fcn_spline=@(r,c) r.^2.*log(r.^2*c+1e-3);
-dRM_dc_fcn=@(x_number,X_dis,RBF_matrix,c) X_dis.^4./(X_dis.^2*c+1e-3);
+dRM_dc_fcn=@(x_num,r,RBF_matrix,c) r.^4./(r.^2*c+1e-3);
 obj_fcn=@(c) objRBF(X_dis,Y_nomlz,x_num,basis_fcn_spline,c,dRM_dc_fcn);
-[c_spline,~,~,~]=optimCubicInterp(obj_fcn,c_initial,1e-2,1e2,1e-3);
+[c_spline,~,~,~]=fminbnd(obj_fcn,1e-2,1e2,optimset('Display','none'));
 
 % triple kernal function
 basis_fcn_triple=@(r,c) (r+c).^3;
-dRM_dc_fcn=@(x_number,X_dis,RBF_matrix,c) 3*(X_dis+c).^3;
+dRM_dc_fcn=@(x_num,r,RBF_matrix,c) 3*(r+c).^2;
 obj_fcn=@(c) objRBF(X_dis,Y_nomlz,x_num,basis_fcn_triple,c,dRM_dc_fcn);
-[c_triple,~,~,~]=optimCubicInterp(obj_fcn,c_initial,1e-2,1e2,1e-3);
+[c_triple,~,~,~]=fminbnd(obj_fcn,1e-2,1e2,optimset('Display','none'));
 
 % multiquadric kernal function
 basis_fcn_multiquadric=@(r,c) sqrt(r+c);
-dRM_dc_fcn=@(x_number,X_dis,RBF_matrix,c) 0.5./RBF_matrix;
+dRM_dc_fcn=@(x_num,r,RBF_matrix,c) 0.5./RBF_matrix;
 obj_fcn=@(c) objRBF(X_dis,Y_nomlz,x_num,basis_fcn_multiquadric,c,dRM_dc_fcn);
-[c_binomial,~,~,~]=optimCubicInterp(obj_fcn,c_initial,1e-2,1e2,1e-3);
+[c_binomial,~,~,~]=fminbnd(obj_fcn,1e-2,1e2,optimset('Display','none'));
 
 % inverse multiquadric kernal function
-basis_fcn_inverse_multiquadric=@(r,c) 1./sqrt(r+c);
-dRM_dc_fcn=@(x_number,X_dis,RBF_matrix,c) -0.5*RBF_matrix.^3;
-obj_fcn=@(c) objRBF(X_dis,Y_nomlz,x_num,basis_fcn_inverse_multiquadric,c,dRM_dc_fcn);
-[c_inverse_binomial,~,~,~]=optimCubicInterp(obj_fcn,c_initial,1e-2,1e2,1e-3);
+basis_fcn_inv_multiquadric=@(r,c) 1./sqrt(r+c);
+dRM_dc_fcn=@(x_num,r,RBF_matrix,c) -0.5*RBF_matrix.^3;
+obj_fcn=@(c) objRBF(X_dis,Y_nomlz,x_num,basis_fcn_inv_multiquadric,c,dRM_dc_fcn);
+[c_inv_binomial,~,~,~]=fminbnd(obj_fcn,1e-2,1e2,optimset('Display','none'));
 
 % c_initial=1;
 % drawFcn(obj_fcn,1e-1,10);
@@ -92,8 +89,8 @@ basis_fcn_list={
     @(r) basis_fcn_spline(r,c_spline);
     @(r) basis_fcn_triple(r,c_triple);
     @(r) basis_fcn_multiquadric(r,c_binomial);
-    @(r) basis_fcn_inverse_multiquadric(r,c_inverse_binomial);};
-c_list=[c_linear;c_gauss;c_spline;c_triple;c_binomial;c_inverse_binomial];
+    @(r) basis_fcn_inv_multiquadric(r,c_inv_binomial);};
+c_list=[c_linear;c_gauss;c_spline;c_triple;c_binomial;c_inv_binomial];
 
 model_num=size(basis_fcn_list,1);
 beta_list=zeros(x_num,model_num);

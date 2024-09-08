@@ -12,13 +12,13 @@ close all hidden;
 % benchmark_name_list={'G04','G06','G09','PVD4','SR7'};
 % benchmark_name_list={'BR','SC','RS','PK','HN','F16'};
 
-
 %% single run
 
 % [objcon_fcn,vari_num,low_bou,up_bou,obj_fcn,Aineq,Bineq,Aeq,Beq,nonlcon_fcn]=Benchmark().get(benchmark_type,benchmark_name);
 
 % NFE_max=100;iter_max=200;obj_torl=1e-6;con_torl=0;
 % optimizer=OptimFSRBF(NFE_max,iter_max,obj_torl,con_torl);
+% optimizer=OptimGLoSADE(NFE_max,iter_max,obj_torl,con_torl);
 % optimizer=OptimKRGCDE(NFE_max,iter_max,obj_torl,con_torl);
 % optimizer=OptimSKO(NFE_max,iter_max,obj_torl,con_torl);
 % optimizer=OptimPAKMCA(NFE_max,iter_max,obj_torl,con_torl);
@@ -33,7 +33,7 @@ close all hidden;
 
 % optimizer.FLAG_CONV_JUDGE=true;
 % optimizer.FLAG_DRAW_FIGURE=true;
-% optimizer.datalib_filestr='data.mat';
+% optimizer.datalib_filestr='lib.mat';
 % optimizer.dataoptim_filestr='optim.mat';
 
 % [x_best,obj_best,NFE,output]=optimizer.optimize(objcon_fcn,vari_num,low_bou,up_bou);
@@ -48,13 +48,19 @@ close all hidden;
 
 % for benchmark_idx=1:length(benchmark_name_list)
 %     benchmark_name=benchmark_name_list{benchmark_idx};
-% 
+%
 %     [objcon_fcn,vari_num,low_bou,up_bou,...
 %         obj_fcn,A,B,Aeq,Beq,nonlcon_fcn]=benchmark.get(benchmark_type,benchmark_name);
+% 
+%     objcon_fcn=@(x)objconFcnTai(x);
+%     vari_num=2;
+%     low_bou=[6,7];
+%     up_bou=[9,10];
+% 
 %     repeat_num=25;
 %     result_obj=zeros(repeat_num,1);
 %     result_NFE=zeros(repeat_num,1);
-%     NFE_max=200;iter_max=300;obj_torl=1e-6;con_torl=0;
+%     NFE_max=50;iter_max=300;obj_torl=1e-6;con_torl=0;
 % 
 %     for repeat_idx=1:repeat_num
 %         % optimizer=OptimFSRBF(NFE_max,iter_max,obj_torl,con_torl);
@@ -78,7 +84,7 @@ close all hidden;
 % 
 %     fprintf('Obj     : lowest=%4.4f,mean=%4.4f,worst=%4.4f,std=%4.4f \n',min(result_obj),mean(result_obj),max(result_obj),std(result_obj));
 %     fprintf('NFE     : lowest=%4.4f,mean=%4.4f,worst=%4.4f,std=%4.4f \n',min(result_NFE),mean(result_NFE),max(result_NFE),std(result_NFE));
-%     save([benchmark_name,'_FSRBF_',num2str(NFE_max),'.mat']);
+%     save([benchmark_name,'_optim',num2str(NFE_max),'.mat']);
 % end
 
 %% test case 
@@ -165,3 +171,12 @@ close all hidden;
 %     fprintf('NFE     : lowest=%4.4f,mean=%4.4f,worst=%4.4f,std=%4.4f \n',min(result_NFE),mean(result_NFE),max(result_NFE),std(result_NFE));
 %     save([benchmark_name,'_SACO_AMS_',num2str(NFE_max),'.mat']);
 % end
+
+%% function 
+
+function [f,c,ceq] = objconFcnTai(x)
+f = 1-x(:,1) + (x(:,2)-8).^2;
+c(:,1) = (x(:,1)-8).^2 +1.5* (x(:,2)-8.5).^2-3.5;
+c(:,2) = -(1.2*x(:,1).*sin(4*x(:,1)) + 1.4*x(:,2).*sin(2*x(:,2)))+1;
+ceq = [];
+end

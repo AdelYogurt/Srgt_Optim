@@ -1,4 +1,4 @@
-function model_CoKRG=srgtExCoKRG(X_list,Y_list,model_option)
+function model_CoKRG=srgtMFCoKRG(X_list,Y_list,model_option)
 % generate Co-Kriging surrogate model
 % support multi level fidelity input
 % input data will be normalize by average and standard deviation of data

@@ -43,13 +43,11 @@ for vari_index=1:vari_num
 end
 X_dis=sqrt(X_dis);
 
-c=(prod(max(X_nomlz)-min(Y_nomlz))/x_num)^(1/vari_num);
-
 % triple kernal function
 if isempty(basis_fcn),basis_fcn=@(r,c) (r+c).^3;end
-if isempty(dRM_dc_fcn),dRM_dc_fcn=@(x_number,X_dis,RBF_matrix,c) 3*(X_dis+c).^3;end
+if isempty(dRM_dc_fcn),dRM_dc_fcn=@(x_number,X_dis,RBF_matrix,c) 3*(X_dis+c).^2;end
 obj_fcn=@(c) objRBF(X_dis,Y_nomlz,x_num,basis_fcn,c,dRM_dc_fcn);
-[c,~,~,~]=optimCubicInterp(obj_fcn,c,1e-2,1e2,1e-3);
+[c,~,~,~]=fminbnd(obj_fcn,1e-2,1e2,optimset('Display','none'));
 basis_fcn=@(r) basis_fcn(r,c);
 
 [beta,RBF_matrix,inv_RBF_matrix]=calRBF(X_dis,Y_nomlz,basis_fcn,x_num);

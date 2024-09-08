@@ -1,100 +1,87 @@
-function drawFcn(draw_fcn,low_bou,up_bou,...
-    grid_num,Y_min,Y_max,fig_hdl,draw_dimension)
+function drawFcn(axe_hdl,draw_fcn,low_bou,up_bou,...
+    grid_num,Y_min,Y_max,draw_dim)
+
 if nargin < 8
-    draw_dimension=[];
+    draw_dim=[];
     if nargin < 7
-        fig_hdl=[];
+        Y_max=[];
         if nargin < 6
-            Y_max=[];
+            Y_min=[];
             if nargin < 5
-                Y_min=[];
-                if nargin < 4
-                    grid_num=[];
-                end
+                grid_num=[];
             end
         end
     end
 end
+
+if isempty(grid_num), grid_num=100; end
+if isempty(Y_max), Y_max=inf;end
+if isempty(Y_min), Y_min=-inf;end
+if isempty(axe_hdl), axe_hdl=gca();end
+
 low_bou=low_bou(:)';
 up_bou=up_bou(:)';
+dim=length(low_bou);
+d_bou=(up_bou-low_bou)/grid_num;
 
-if isempty(fig_hdl)
-    fig_hdl=figure(101);
-end
-axes_handle=fig_hdl.CurrentAxes;
-if isempty(axes_handle)
-    axes_handle=axes(fig_hdl);
-end
-axes_context=axes_handle.Children;
-dimension=length(low_bou);
-
-if isempty(grid_num)
-    grid_num=100;
-end
-if isempty(Y_max)
-    Y_max=inf;
-end
-if isempty(Y_min)
-    Y_min=-inf;
-end
-
-switch dimension
+switch dim
     case 1
-        d_bou=(up_bou-low_bou)/grid_num;
-        draw_X=low_bou:d_bou:up_bou;
-        draw_Fval=zeros(grid_num+1,1);
-        for x_index__=1:(grid_num+1)
-            predict_x=draw_X(x_index__);
-            draw_Fval(x_index__)=draw_fcn(predict_x);
+        x_mat=low_bou:d_bou:up_bou;
+        fval_mat=zeros(grid_num+1,1);
+        for x_idx=1:(grid_num+1)
+            predict_x=x_mat(x_idx);
+            fval_mat(x_idx)=draw_fcn(predict_x);
         end
-        line(axes_handle,draw_X,draw_Fval);
-        xlabel('X');
-        ylabel('value');
-        
+        line(axe_hdl,x_mat,fval_mat);
+
+        xlabel('x');
+        zlabel('value');
     case 2
-        d_bou=(up_bou-low_bou)/grid_num;
-        [draw_X,draw_Y]=meshgrid(low_bou(1):d_bou(1):up_bou(1),low_bou(2):d_bou(2):up_bou(2));
-        draw_Fval=zeros(grid_num+1,grid_num+1,2);
-        for x_index__=1:grid_num+1
-            for y_index__=1:grid_num+1
-                predict_x=([x_index__,y_index__]-1).*d_bou+low_bou;
-                draw_Fval(y_index__,x_index__,:)=draw_fcn(predict_x);
+        [x_mat,y_mat]=meshgrid(low_bou(1):d_bou(1):up_bou(1),low_bou(2):d_bou(2):up_bou(2));
+        fval_mat=zeros(grid_num+1,2);
+        for x_idx=1:grid_num+1
+            for y_idx=1:grid_num+1
+                predict_x=([x_idx,y_idx]-1).*d_bou+low_bou;
+                fval_mat(y_idx,x_idx,:)=draw_fcn(predict_x);
             end
         end
-        draw_Fval(draw_Fval > Y_max)=Y_max;
-        draw_Fval(draw_Fval < Y_min)=Y_min;
-        axes_context=[axes_context;surface(draw_X,draw_Y,draw_Fval(:,:,1),'FaceAlpha',0.5,'EdgeColor','none');];
-        axes_handle.set('Children',axes_context);
-        xlabel('X');
-        ylabel('Y');
+        fval_mat(fval_mat > Y_max)=Y_max;
+        fval_mat(fval_mat < Y_min)=Y_min;
+        surface(x_mat,y_mat,fval_mat(:,:,1),'FaceAlpha',0.5,'EdgeColor','none');
+
+        xlabel('x');
+        ylabel('y');
         zlabel('value');
         view(3);
-
     otherwise
-        if isempty(draw_dimension)
+        if isempty(draw_dim)
             warning('drawFcn: lack draw_dimension input, using default value dimension [1 2]')
-            draw_dimension=[1,2];
+            draw_dim=[1,2];
         end
-        d_bou=(up_bou(draw_dimension)-low_bou(draw_dimension))/grid_num;
-        middle=(up_bou+low_bou)/2;
-        [draw_X,draw_Y]=meshgrid(...
-            low_bou(draw_dimension(1)):d_bou(1):up_bou(draw_dimension(1)),...
-            low_bou(draw_dimension(2)):d_bou(2):up_bou(draw_dimension(2)));
-        draw_Fval=zeros(grid_num+1,grid_num+1);
-        for x_index__=1:grid_num+1
-            for y_index__=1:grid_num+1
-                predict_x=middle;
-                predict_x(draw_dimension)=([x_index__,y_index__]-1).*d_bou+low_bou(draw_dimension);
-                draw_Fval(y_index__,x_index__)=draw_fcn(predict_x);
+        d_bou=(up_bou(draw_dim)-low_bou(draw_dim))/grid_num;
+        mid=(up_bou+low_bou)/2;
+        [x_mat,y_mat]=meshgrid(...
+            low_bou(draw_dim(1)):d_bou(1):up_bou(draw_dim(1)),...
+            low_bou(draw_dim(2)):d_bou(2):up_bou(draw_dim(2)));
+        fval_mat=zeros(grid_num+1);
+        for x_idx=1:grid_num+1
+            for y_idx=1:grid_num+1
+                predict_x=mid;
+                predict_x(draw_dim)=([x_idx,y_idx]-1).*d_bou+low_bou(draw_dim);
+                fval_mat(y_idx,x_idx)=draw_fcn(predict_x);
             end
         end
-        draw_Fval(draw_Fval > Y_max)=Y_max;
-        draw_Fval(draw_Fval < Y_min)=Y_min;
-        axes_context=[axes_context;surface(draw_X,draw_Y,draw_Fval(:,:),'FaceAlpha',0.5,'EdgeColor','none');];
-        axes_handle.set('Children',axes_context);
-        xlabel('X');
-        ylabel('Y');
+        fval_mat(fval_mat > Y_max)=Y_max;
+        fval_mat(fval_mat < Y_min)=Y_min;
+
+        surface(x_mat,y_mat,fval_mat(:,:),'FaceAlpha',0.5,'EdgeColor','none');
+
+        xlabel('x');
+        ylabel('y');
         zlabel('value');
         view(3);
 end
+
+grid on;
+drawnow;
 end

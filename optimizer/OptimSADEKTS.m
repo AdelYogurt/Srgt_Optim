@@ -22,20 +22,17 @@ classdef OptimSADEKTS < OptimKRGCDE
 
     % main function
     methods
-        function self=OptimSADEKTS(NFE_max,iter_max,obj_torl,con_torl,dataoptim_filestr)
+        function self=OptimSADEKTS(NFE_max,iter_max,obj_torl,con_torl)
             % initialize optimization
             %
-            if nargin < 5
-                dataoptim_filestr='';
-                if nargin < 4
-                    con_torl=[];
-                    if nargin < 3
-                        obj_torl=[];
-                        if nargin < 2
-                            iter_max=[];
-                            if nargin < 1
-                                NFE_max=[];
-                            end
+            if nargin < 4
+                con_torl=[];
+                if nargin < 3
+                    obj_torl=[];
+                    if nargin < 2
+                        iter_max=[];
+                        if nargin < 1
+                            NFE_max=[];
                         end
                     end
                 end
@@ -48,185 +45,101 @@ classdef OptimSADEKTS < OptimKRGCDE
                 obj_torl=1e-6;
             end
 
-            self@OptimKRGCDE(NFE_max,iter_max,obj_torl,con_torl,dataoptim_filestr);
+            self@OptimKRGCDE(NFE_max,iter_max,obj_torl,con_torl);
         end
 
-        function X_init=dataKTS(self,datalib_source,pop_num)
+        function X_init=dataKTS(self,datalib_source,vari_num,low_bou,up_bou,pop_num,init_type)
             % Knowledge-Transfer-Based Sampling Method
             %
-            [x_num,vari_num]=size(datalib_source.X);
-            if nargin < 3
-                pop_num=min(100,10*vari_num);
+            if nargin < 7
+                init_type='';
+                if nargin < 6
+                    pop_num=[];
+                end
+            end
+            [x_src_num,vari_src_num]=size(datalib_source.X);
+            if vari_src_num ~= vari_num
+                error('OptimSADEKTS: SVM-KTS donot support inequal variable number');
             end
 
-            % generate initial latin hypercubic which will be corrected
-            % X_source=lhsdesign(pop_num,vari_num).*(up_bou-low_bou)+low_bou;
+            if isempty(init_type), init_type='inherit';end
+            if isempty(pop_num), pop_num=min(100,10*vari_num);end
 
-            % import data from data library to rank data
-            [X,Obj,Con,Coneq,~,~]=datalibLoad(datalib_source);
-            if pop_num <= x_num
-                idx_list=randperm(x_num,pop_num);
-                X_source=X(idx_list,:);
-            else
-                X_source=[X;lhsdesign((pop_num-size(X,1)),vari_num).*(up_bou-low_bou)+low_bou];
+            % import data from source data library and rank data
+            [X_src,Obj_src,Con_src,Coneq_src,Vio_src]=datalibLoad(datalib_source);
+            [X_src,~,~,~]=self.rankData(X_src,Obj_src,Con_src,Coneq_src,Vio_src);
+            X_src_norm=(X_src-datalib_source.low_bou)./(datalib_source.up_bou-datalib_source.low_bou);
+
+            % generate initial latin hypercubic which will be corrected
+            switch init_type
+                case 'restart'
+                    X_tar_norm=lhsdesign(pop_num,vari_num);
+                case 'inherit'
+                    % remove ovevrlap point
+                    X_src_inherit_norm=X_src_norm;
+                    x_idx=1;
+                    while x_idx < size(X_src_inherit_norm,1)
+                        x_src_norm=X_src_inherit_norm(x_idx,:);
+                        idx_search=x_idx+1:size(X_src_inherit_norm,1);
+                        dist=vecnorm(X_src_inherit_norm(idx_search,:)-x_src_norm,2,2);
+                        idx_search(dist > self.add_torl)=[];
+                        X_src_inherit_norm(idx_search,:)=[];
+                        x_idx=x_idx+1;
+                    end
+
+                    if x_src_num < pop_num
+                        X_tar_norm=[X_src_inherit_norm;lhsdesign(pop_num-x_src_num,vari_num)];
+                    else
+                        X_tar_norm=X_src_inherit_norm(randperm(size(X_src_inherit_norm,1),pop_num),:);
+                    end
             end
 
             % KTS
-            %     line(X_initial(:,1),X_initial(:,2),'lineStyle','none','Marker','o','Color','b')
+            % line(X_src_norm(:,1),X_src_norm(:,2),'lineStyle','none','Marker','o','Color','b')
+            % line(X_tar_norm(:,1),X_tar_norm(:,2),'lineStyle','none','Marker','^','Color','k')
 
-            % rank x_list data
-            [X,~,~,~]=self.rankData(X,Obj,Con,Coneq,[],self.con_torl);
-
-            N_elite=round(x_num*self.elite_rate);
+            N_elite=round(x_src_num*self.elite_rate);
 
             % generate SVM model, elite will be 1
-            Class=[ones(N_elite,1);-ones(x_num-N_elite,1)];
-            model_SVM=self.classifySVM(X,Class,self.penalty_SVM);
+            Class_src=[true(N_elite,1);false(x_src_num-N_elite,1)];
+            model_option.box_con=self.penalty_SVM;
+            model_SVM=classifySVM(X_src_norm,Class_src,model_option);
 
             % get predict value by SVM, if equal to 1 is elite
-            Bool=model_SVM.predict(X_source) == 1;
+            Bool_tar=model_SVM.predict(X_tar_norm) == 1;
 
-            while all(~Bool)
-                X_source=lhsdesign(pop_num,vari_num).*(up_bou-low_bou)+low_bou;
+            iter=0;
+            while all(~Bool_tar) && iter < 10 % while all initial target point are not in superior
+                X_tar_norm=lhsdesign(pop_num,vari_num);
 
                 % get predict value by SVM
-                Bool=model_SVM.predict(X_source) == 1;
+                Bool_tar=model_SVM.predict(X_tar_norm) == 1;
+                iter=iter+1;
             end
 
             % move X to nearest X_superior
-            X_superior=X_source(Bool,:);
-            X_inferior=X_source;
-            X_inferior(Bool,:)=[];
-            for x_index=1:size(X_inferior,1)
-                x=X_inferior(x_index,:);
+            X_superior_norm=X_tar_norm(Bool_tar,:);
+            X_inferior_norm=X_tar_norm;
+            X_inferior_norm(Bool_tar,:)=[];
+            for x_idx=1:size(X_inferior_norm,1)
+                x_src_norm=X_inferior_norm(x_idx,:);
 
-                distance=sqrt(sum((x-X_superior).^2,2));
-                [~,index]=min(distance);
-                x_superior=X_superior(index,:); % nearest x_superior
-                x=x+self.correction_factor*(x_superior-x);
-                X_inferior(x_index,:)=x;
+                x_dist=sqrt(sum((x_src_norm-X_superior_norm).^2,2));
+                [~,idx]=min(x_dist);
+                x_superior=X_superior_norm(idx,:); % nearest x_superior
+                x_src_norm=x_src_norm+self.correction_factor*(x_superior-x_src_norm);
+                X_inferior_norm(x_idx,:)=x_src_norm;
             end
 
-            X_init=[X_inferior;X_superior];
-            %     line(X_updata(:,1),X_updata(:,2),'lineStyle','none','Marker','.','Color','r')
+            % assembly
+            X_init_norm=[X_inferior_norm;X_superior_norm];
+            X_init=X_init_norm.*(up_bou-low_bou)+low_bou;
+            self.X_init=X_init;
+
+            % KTS
+            % line(X_tar_norm(:,1),X_tar_norm(:,2),'lineStyle','none','Marker','^','Color','k')
+            % line(X_init_norm(:,1),X_init_norm(:,2),'lineStyle','none','Marker','v','Color','r')
         end
-    end
-
-    % machine learning
-    methods(Static)
-        function model_SVM=classifySVM(X,Y,model_option)
-            % generate support vector machine model
-            % use fmincon to get alpha
-            %
-            % input:
-            % X(x_num x vari_num matrix), Y(x_num x 1 matrix),...
-            % model_option(optional, include: box_con, kernel_fcn, optimize_option)
-            %
-            % output:
-            % model_SVM(a support vector machine model)
-            %
-            % abbreviation:
-            % num: number, pred: predict, vari: variable
-            % nomlz: normalization, var: variance, fcn: function
-            %
-            if nargin < 3,model_option=struct();end
-            if ~isfield(model_option,'box_con'), model_option.('box_con')=1;end
-            if ~isfield(model_option,'kernel_fcn'), model_option.('kernel_fcn')=[];end
-            if ~isfield(model_option,'optimize_option'), model_option.('optimize_option')=optimoptions...
-                    ('quadprog','Display','none');end
-
-            % normalization data
-            [x_num,vari_num]=size(X);
-            aver_X=mean(X);
-            stdD_X=std(X);stdD_X(stdD_X == 0)=1;
-            X_nomlz=(X-aver_X)./stdD_X;
-            Y(Y == 0)=-1;
-
-            % default kernal function
-            kernel_fcn=model_option.kernel_fcn;
-            if isempty(kernel_fcn)
-                % notice after standard normal distribution normalize
-                sigma=1/vari_num;
-                kernel_fcn=@(U,V) kernelGaussian(U,V,sigma);
-            end
-
-            % initialization kernal function process X_cov
-            K=kernel_fcn(X_nomlz,X_nomlz);
-            box_con=model_option.box_con;
-            alpha=solveAlpha(K,Y,x_num,box_con,model_option);
-
-            % obtain other paramter
-            alpha_Y=alpha.*Y;
-            w=sum(alpha_Y.*X_nomlz);
-            bool_support=(alpha > 1e-6); % support vector
-            alpha_Y_cov=K*alpha_Y;
-            b=sum(Y(bool_support)-alpha_Y_cov(bool_support))/length(bool_support);
-
-            % generate predict function
-            pred_fcn=@(X_pred) predictSVM(X_pred,X_nomlz,alpha_Y,b,aver_X,stdD_X,kernel_fcn);
-
-            % output model
-            model_SVM.X=X;
-            model_SVM.Y=Y;
-            model_SVM.aver_X=aver_X;
-            model_SVM.stdD_X=stdD_X;
-
-            model_SVM.alpha=alpha;
-            model_SVM.bool_support=bool_support;
-            model_SVM.w=w;
-            model_SVM.b=b;
-
-            model_SVM.box_con=box_con;
-            model_SVM.kernel=kernel_fcn;
-            model_SVM.predict=pred_fcn;
-
-            function [Y_pred,Prob_pred]=predictSVM...
-                    (X_pred,X_nomlz,alpha_Y,b,aver_X,stdD_X,kernel_fcn)
-                % SVM predict function
-                %
-                [x_pred_num,~]=size(X_pred);
-                X_pred_nomlz=(X_pred-aver_X)./stdD_X;
-
-                K_pred=kernel_fcn(X_pred_nomlz,X_nomlz);
-                Prob_pred=K_pred*alpha_Y+b;
-
-                Prob_pred=1./(1+exp(-Prob_pred));
-                Y_pred=ones(x_pred_num,1);
-                Y_pred(Prob_pred < 0.5)=0;
-            end
-
-            function K=kernelGaussian(U,V,sigma)
-                % gaussian kernal function
-                %
-                K=zeros(size(U,1),size(V,1));
-                for vari_index=1:size(U,2)
-                    K=K+(U(:,vari_index)-V(:,vari_index)').^2;
-                end
-                K=exp(-K*sigma);
-            end
-
-            function alpha=solveAlpha(K,Y,x_num,box_con,model_option)
-                % min SVM object function to get alpha
-                %
-
-                % solve alpha need to minimize followed equation
-                % obj=sum(alpha)-(alpha.*Y)'*K*(alpha.*Y)/2;
-
-                alpha=ones(x_num,1)*0.5;
-                low_bou_A=0*ones(x_num,1);
-                if isempty(box_con) || box_con==0
-                    up_bou_A=[];
-                else
-                    up_bou_A=box_con*ones(x_num,1);
-                end
-                Aeq=Y';
-                hess=-K.*(Y*Y');
-                grad=ones(x_num,1);
-                alpha=quadprog(hess,grad,[],[],Aeq,0,low_bou_A,up_bou_A,alpha,model_option.optimize_option);
-            end
-
-        end
-
     end
 end
 

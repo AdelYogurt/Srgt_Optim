@@ -359,6 +359,7 @@ classdef OptimTRARSM < handle
                 obj_infill_old=obj_infill;
             end
 
+            % cut result
             result_X(self.dataoptim.iter:end,:)=[];
             result_Obj(self.dataoptim.iter:end,:)=[];
             if con_num,result_Con(self.dataoptim.iter:end,:)=[];end
@@ -596,7 +597,7 @@ classdef OptimTRARSM < handle
 
             % calculate vio
             if ~isempty(con),vio=[vio,max(max(con-datalib.con_torl,0),[],2)];end
-            if ~isempty(coneq),vio=[vio,max(abs(coneq-datalib.con_torl),[],2)];end
+            if ~isempty(coneq),vio=[vio,max(max(abs(coneq)-datalib.con_torl,0),[],2)];end
             vio=max(vio,[],2);
 
             datalib.X=[datalib.X;x];

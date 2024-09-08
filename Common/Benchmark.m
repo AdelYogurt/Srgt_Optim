@@ -125,7 +125,7 @@ classdef Benchmark
 
         function obj=singleRSObj(x)
             % Rastrigin function
-            % multi local minimum function
+            % multi local mFinimum function
             %
             x1=x(:,1);x2=x(:,2);
             obj=x1.^2+x2.^2-cos(18*x1)-cos(18*x2);
@@ -146,7 +146,6 @@ classdef Benchmark
             Aineq=[];Bineq=[];Aeq=[];Beq=[];
             x_best=[1,1];obj_best=0;
         end
-
 
         function obj=singleBRObj(x)
             % Branin function
@@ -310,6 +309,18 @@ classdef Benchmark
             Aineq=[];Bineq=[];Aeq=[];Beq=[];
             x_best=[0.2017;0.1500;0.4769;0.2753;0.3117;0.6573];obj_best=-3.3224;
         end
+        
+        % vari_num=8
+        function obj=singleRS8Obj(x)
+            % Rastrigin function
+            %
+            obj=80+sum(x.^2-10*cos(2*pi*x),2);
+        end
+        function [vari_num,Aineq,Bineq,Aeq,Beq,low_bou,up_bou,x_best,obj_best]=singleRS8Par()
+            vari_num=8;low_bou=-5.12*ones(1,8);up_bou=5.12*ones(1,8);
+            Aineq=[];Bineq=[];Aeq=[];Beq=[];
+            x_best=[0,0,0,0,0,0,0,0];obj_best=0;
+        end
 
         % vari_num=10
         function obj=singleROS10DObj(x)
@@ -417,15 +428,20 @@ classdef Benchmark
             obj=sum((1:20).*x.^2,2);
         end
         function [vari_num,Aineq,Bineq,Aeq,Beq,low_bou,up_bou,x_best,obj_best]=singleEP20Par()
-            vari_num=20;
-            Aineq=[];
-            Bineq=[];
-            Aeq=[];
-            Beq=[];
-            low_bou=ones(1,vari_num)*-30;
-            up_bou=ones(1,vari_num)*30;
+            vari_num=20;Aineq=[];Bineq=[];Aeq=[];Beq=[];
+            low_bou=ones(1,vari_num)*-20;up_bou=ones(1,vari_num)*20;
             x_best=[1.8000,0.4000,2.0000,1.2000,1.4000,0.6000,1.6000,0.2000,0.8000,1.0000,1.3000,1.1000,2.0000,1.4000,0.5000,0.3000,1.6000,0.7000,0.3000,1.9000];
             obj_best=0;
+        end
+        
+        function obj=singleGR20Obj(x)
+            % 20D Griewank function
+            obj=sum(x.^2,2)/4000-prod(cos(x./sqrt(1:20)),2)+1;
+        end
+        function [vari_num,Aineq,Bineq,Aeq,Beq,low_bou,up_bou,x_best,obj_best]=singleGR20Par()
+            vari_num=20;Aineq=[];Bineq=[];Aeq=[];Beq=[];
+            low_bou=ones(1,vari_num)*-600;up_bou=ones(1,vari_num)*600;
+            x_best=[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0];obj_best=0;
         end
  
         % vari_num=30
@@ -453,6 +469,17 @@ classdef Benchmark
             up_bou=20*ones(1,vari_num);
             x_best=zeros(1,vari_num);
             obj_best=-20-exp(1);
+        end
+        
+        function obj=singleZF30Obj(x)
+            % 30D Zakharov function
+            %
+            obj=sum(x.^2,2)+(sum(0.5*(1:30).*x,2))^2+(sum(0.5*(1:30).*x,2))^4;
+        end
+        function [vari_num,Aineq,Bineq,Aeq,Beq,low_bou,up_bou,x_best,obj_best]=singleZF30Par()
+            vari_num=30;Aineq=[];Bineq=[];Aeq=[];Beq=[];
+            low_bou=-5*ones(1,vari_num);up_bou=10*ones(1,vari_num);
+            x_best=zeros(1,vari_num);obj_best=0;
         end
 
     end

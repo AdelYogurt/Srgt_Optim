@@ -1,4 +1,4 @@
-function model_HrKRG=srgtHrKRG(X_list,Y_list,model_option)
+function mdl_HrKRG=srgtMFHrKRG(X_list,Y_list,model_option)
 % generate Hierarchical Kriging surrogate model
 % support multi level fidelity input
 % input data will be normalize by average and standard deviation of data
@@ -108,12 +108,12 @@ while fid_idx < fid_num
     pred_fcn=model.predict;
 end
 
-model_HrKRG=model_option;
+mdl_HrKRG=model_option;
 
-model_HrKRG.X=X;
-model_HrKRG.Y=Y;
-model_HrKRG.hyp_list=hyp_list;
-model_HrKRG.model_list=model_list;
+mdl_HrKRG.X=X;
+mdl_HrKRG.Y=Y;
+mdl_HrKRG.hyp_list=hyp_list;
+mdl_HrKRG.model_list=model_list;
 
-model_HrKRG.predict=pred_fcn;
+mdl_HrKRG.predict=pred_fcn;
 end

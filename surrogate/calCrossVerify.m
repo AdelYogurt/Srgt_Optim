@@ -54,9 +54,9 @@ switch verify_type
         if x_fold_number == 1
             error('interpolationCrossVerify: R2 validation can not use single check point')
         end
-        fval_check_average = sum(Y)/x_fold_number;
+        Y_avg = sum(Y)/x_fold_number;
         sum_error_sq = sum((Y_pred-Y).^2);
-        sum_variance = sum((fval_check_average-Y).^2);
+        sum_variance = sum((Y_avg-Y).^2);
         R_sq = 1-sum_error_sq/sum_variance;
         loss = loss+R_sq;
     case 'NRMSE'

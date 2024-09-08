@@ -1,4 +1,4 @@
-function model_CoRBF=srgtExCoRBF(X_list,Y_list,model_option)
+function model_CoRBF=srgtMFCoRBF(X_list,Y_list,model_option)
 % generate Co-RBF surrogate model
 % optimize scaling factor
 % input data will be normalize by average and standard deviation of data
@@ -64,7 +64,7 @@ while fid_idx < fid_num
     % optimize rho by Rsq
     rho_low_bou=-10;
     rho_up_bou=10;
-    obj_Rsq=@(rho) norm(srgtRBF(X,Y-max(min(rho,rho_up_bou),rho_low_bou)*pred_fcn(X),basis_fcn).Rsq());
+    obj_Rsq=@(rho) norm(srgtRBF(X,Y-max(min(rho,rho_up_bou),rho_low_bou)*pred_fcn(X),basis_fcn).Err());
     rho=fminunc(obj_Rsq,rho,model_option.('optimize_option'));
 
     rho_list(fid_idx)=rho;

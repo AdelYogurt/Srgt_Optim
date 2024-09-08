@@ -175,15 +175,19 @@ classdef OptimKRGCDE < handle
                     % global search
                     x_infill=self.searchGlobal(X,Obj,Con,Coneq,Vio,...
                         vari_num,low_bou,up_bou,self.pop_num);
+                    obj_pred=self.Srgt_obj{1}.predict(x_infill);
                 else
                     % local search
                     x_infill=self.searchLocal(X,Obj,Con,Coneq,Vio,...
                         vari_num,low_bou,up_bou,self.pop_num,self.RBF_num);
+                    obj_pred=self.Srgt_obj_local{1}.predict(x_infill);
                 end
 
                 % updata infill point
                 [self.datalib,x_infill,obj_infill,con_infill,coneq_infill,vio_infill,repeat_idx]=self.sample(self.datalib,objcon_fcn,x_infill);
                 [X,Obj,Con,Coneq,Vio]=self.datalibLoad(self.datalib);
+
+                fprintf('mode:    %c    real_obj:    %f    pred_obj:    %f\n',search_mode,obj_pred,obj_infill);
 
                 improve_flag=false;
                 if self.FLAG_CON
@@ -268,6 +272,7 @@ classdef OptimKRGCDE < handle
                 end
             end
 
+            % cut result
             result_X(self.dataoptim.iter:end,:)=[];
             result_Obj(self.dataoptim.iter:end,:)=[];
             if con_num,result_Con(self.dataoptim.iter:end,:)=[];end
@@ -326,9 +331,9 @@ classdef OptimKRGCDE < handle
 
         function [datalib,X,Obj,Con,Coneq,Vio,repeat_idx]=sample...
                 (self,datalib,objcon_fcn,X_add,cost,fidelity)
-            % find best result to record
+            % sample objcon_fcn warpper, will record best sample
             %
-            if nargin < 6, fidelity=[];if nargin < 5, cost=[];end,end
+            if nargin < 6,fidelity=[];if nargin < 5,cost=[];end,end
             if isempty(fidelity), fidelity=1;end
             if isempty(cost), cost=1;end
 
@@ -427,7 +432,7 @@ classdef OptimKRGCDE < handle
                     vio_DE_list=vio_DE_list+sum(max(con_pred_DE_list-self.con_torl,0),2);
                 end
                 if ~isempty(Coneq)
-                    vio_DE_list=vio_DE_list+sum((abs(coneq_pred_DE_list)-self.con_torl),2);
+                    vio_DE_list=vio_DE_list+sum(max(abs(coneq_pred_DE_list)-self.con_torl,0),2);
                 end
 
                 feasi_boolean_DE_list=vio_DE_list == 0;
@@ -463,56 +468,56 @@ classdef OptimKRGCDE < handle
                 x_infill=X_DE(fitness_best_idx,:);
             end
 
-            function X_new = DERand(low_bou,up_bou,X,F,x_num,rand_num)
-                [x_number__,variable_number__] = size(X);
-                X_new = zeros(x_num,variable_number__);
-                for x_idx__ = 1:x_num
-                    idx__ = randi(x_number__,2*rand_num+1,1);
-                    X_new(x_idx__,:) = X(idx__(1),:);
-                    for rand_idx__ = 1:rand_num
-                        X_new(x_idx__,:) = X_new(x_idx__,:)+...
+            function X_new=DERand(low_bou,up_bou,X,F,x_num,rand_num)
+                [x_number__,variable_number__]=size(X);
+                X_new=zeros(x_num,variable_number__);
+                for x_idx__=1:x_num
+                    idx__=randi(x_number__,2*rand_num+1,1);
+                    X_new(x_idx__,:)=X(idx__(1),:);
+                    for rand_idx__=1:rand_num
+                        X_new(x_idx__,:)=X_new(x_idx__,:)+...
                             F*(X(idx__(2*rand_idx__),:)-X(idx__(2*rand_idx__+1),:));
-                        X_new(x_idx__,:) = max(X_new(x_idx__,:),low_bou);
-                        X_new(x_idx__,:) = min(X_new(x_idx__,:),up_bou);
+                        X_new(x_idx__,:)=max(X_new(x_idx__,:),low_bou);
+                        X_new(x_idx__,:)=min(X_new(x_idx__,:),up_bou);
                     end
                 end
             end
 
-            function X_new = DECurrentRand(low_bou,up_bou,X,F)
-                [x_number__,variable_number__] = size(X);
-                X_new = zeros(x_number__,variable_number__);
-                for x_idx__ = 1:x_number__
-                    idx__ = randi(x_number__,3,1);
-                    X_new(x_idx__,:) = X(x_idx__,:)+...
+            function X_new=DECurrentRand(low_bou,up_bou,X,F)
+                [x_number__,variable_number__]=size(X);
+                X_new=zeros(x_number__,variable_number__);
+                for x_idx__=1:x_number__
+                    idx__=randi(x_number__,3,1);
+                    X_new(x_idx__,:)=X(x_idx__,:)+...
                         F*(X(idx__(1),:)-X(x_idx__,:)+...
                         X(idx__(2),:)-X(idx__(3),:));
-                    X_new(x_idx__,:) = max(X_new(x_idx__,:),low_bou);
-                    X_new(x_idx__,:) = min(X_new(x_idx__,:),up_bou);
+                    X_new(x_idx__,:)=max(X_new(x_idx__,:),low_bou);
+                    X_new(x_idx__,:)=min(X_new(x_idx__,:),up_bou);
                 end
             end
 
-            function X_new = DECurrentBest(low_bou,up_bou,X,F,x_best_idx)
-                [x_number__,variable_number__] = size(X);
-                X_new = zeros(x_number__,variable_number__);
-                for x_idx__ = 1:x_number__
-                    idx__ = randi(x_number__,2,1);
-                    X_new(x_idx__,:) = X(x_idx__,:)+...
+            function X_new=DECurrentBest(low_bou,up_bou,X,F,x_best_idx)
+                [x_number__,variable_number__]=size(X);
+                X_new=zeros(x_number__,variable_number__);
+                for x_idx__=1:x_number__
+                    idx__=randi(x_number__,2,1);
+                    X_new(x_idx__,:)=X(x_idx__,:)+...
                         F*(X(x_best_idx,:)-X(x_idx__,:)+...
                         X(idx__(1),:)-X(idx__(2),:));
-                    X_new(x_idx__,:) = max(X_new(x_idx__,:),low_bou);
-                    X_new(x_idx__,:) = min(X_new(x_idx__,:),up_bou);
+                    X_new(x_idx__,:)=max(X_new(x_idx__,:),low_bou);
+                    X_new(x_idx__,:)=min(X_new(x_idx__,:),up_bou);
                 end
             end
 
-            function X_new = DECrossover(low_bou,up_bou,X,V,C_R)
-                [x_number__,variable_number__] = size(X);
-                X_new = X;
-                rand_number = rand(x_number__,variable_number__);
-                idx__ = find(rand_number < C_R);
-                X_new(idx__) = V(idx__);
-                for x_idx__ = 1:x_number__
-                    X_new(x_idx__,:) = max(X_new(x_idx__,:),low_bou);
-                    X_new(x_idx__,:) = min(X_new(x_idx__,:),up_bou);
+            function X_new=DECrossover(low_bou,up_bou,X,V,C_R)
+                [x_number__,variable_number__]=size(X);
+                X_new=X;
+                rand_number=rand(x_number__,variable_number__);
+                idx__=find(rand_number < C_R);
+                X_new(idx__)=V(idx__);
+                for x_idx__=1:x_number__
+                    X_new(x_idx__,:)=max(X_new(x_idx__,:),low_bou);
+                    X_new(x_idx__,:)=min(X_new(x_idx__,:),up_bou);
                 end
             end
 
@@ -530,7 +535,9 @@ classdef OptimKRGCDE < handle
 
             % step 8
             % rand select initial local point from x_list
-            x_idx=randi(pop_num);
+            % x_idx=randi(pop_num);
+            % x_idx=1;
+            x_idx=randi(ceil(pop_num*(self.NFE_max-self.dataoptim.NFE)/(self.NFE_max)));
             x_init=X(x_idx,:);
 
             % select nearest point to construct RBF
@@ -624,10 +631,6 @@ classdef OptimKRGCDE < handle
                 for con_i=1:length(Srgt_obj)
                     [Obj_pred(:,con_i)]=Srgt_obj{con_i}.predict(X_pred);
                 end
-
-                if any(isnan([Obj_pred]))
-                    disp('nan');
-                end
             end
 
             function [Con_pred,Coneq_pred]=conFcnSurr(X_pred,Srgt_con,Srgt_coneq)
@@ -648,10 +651,6 @@ classdef OptimKRGCDE < handle
                     for coneq_i=1:length(Srgt_coneq)
                         [Coneq_pred(:,coneq_i)]=Srgt_coneq{coneq_i}.predict(X_pred);
                     end
-                end
-
-                if any(isnan([Con_pred,Coneq_pred]))
-                    disp('nan');
                 end
             end
         end
@@ -809,7 +808,7 @@ classdef OptimKRGCDE < handle
             
             % calculate vio
             if ~isempty(con),vio=[vio,max(max(con-datalib.con_torl,0),[],2)];end
-            if ~isempty(coneq),vio=[vio,max(abs(coneq-datalib.con_torl),[],2)];end
+            if ~isempty(coneq),vio=[vio,max(max(abs(coneq)-datalib.con_torl,0),[],2)];end
             vio=max(vio,[],2);
 
             datalib.X=[datalib.X;x];

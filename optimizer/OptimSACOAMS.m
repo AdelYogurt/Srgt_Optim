@@ -1776,7 +1776,7 @@ else
         vio_list=vio_list+sum(max(con_list-con_torl,0),2);
     end
     if ~isempty(coneq_list)
-        vio_list=vio_list+sum((abs(coneq_list)-con_torl),2);
+        vio_list=vio_list+sum(max(abs(coneq_list)-con_torl,0),2);
     end
 end
 end

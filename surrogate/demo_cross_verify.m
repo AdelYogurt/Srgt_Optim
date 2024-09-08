@@ -1,5 +1,5 @@
 clc;
-clear;
+% clear;
 close all hidden;
 
 %% calculate CV value
@@ -8,14 +8,14 @@ close all hidden;
 % X=lhsdesign(30,2);
 % Y=obj_fcn(X);
 % 
-% K=10;
-% verify_type='R2';
+K=10;
+verify_type='R2';
 % 
 % fit_model_fcn=@(X,Y) srgtRBF(X,Y);
 % fit_model_fcn=@(X,Y) srgtKRG(X,Y);
 % 
-% value=calCrossVerify(fit_model_fcn,K,X,Y,verify_type);
-% fprintf('loss: %f\n',value);
+value=calCrossVerify(fit_model_fcn,K,X,Y,verify_type);
+fprintf('loss: %f\n',value);
 
 %% SSV
 

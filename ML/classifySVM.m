@@ -24,13 +24,14 @@ if ~isfield(model_option,'optimize_option'), model_option.('optimize_option')=op
 aver_X=mean(X);
 stdD_X=std(X);stdD_X(stdD_X == 0)=1;
 X_nomlz=(X-aver_X)./stdD_X;
+Y=double(Y);
 Y(Y == 0)=-1;
 
 % default kernal function
 kernel_fcn=model_option.kernel_fcn;
 if isempty(kernel_fcn)
     % notice after standard normal distribution normalize
-    sigma=x_num/vari_num;
+    sigma=1/vari_num;
     kernel_fcn=@(U,V) kernelGaussian(U,V,sigma);
 end
 

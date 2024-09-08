@@ -1,4 +1,4 @@
-function model_MtKRG=srgtMtKRG(X_list,Y_list,model_option)
+function mdl_MFKRG=srgtMFKRG(X_list,Y_list,model_option)
 % generate Multi-Level Kriging surrogate model by fitting bias
 % input data will be normalize by average and standard deviation of data
 %
@@ -44,7 +44,7 @@ hyp_list=[hyp_list;repmat({[]},fid_num-length(hyp_list),1)];
 reg_fcn_list=model_option.('reg_fcn_list');
 reg_fcn_list=[reg_fcn_list;repmat({[]},fid_num-length(reg_fcn_list),1)];
 
-pred_fcn=@(X) zeros(size(X));
+pred_fcn=@(X) zeros(size(X,1),1);
 % construct total model
 for fid_idx=1:fid_num
     X=X_list{fid_idx};
@@ -75,14 +75,14 @@ end
 % initialization predict function
 pred_fcn=@(X_pred) predictMtKRG(X_pred,fid_num,model_list);
 
-model_MtKRG=model_option;
+mdl_MFKRG=model_option;
 
-model_MtKRG.X=X;
-model_MtKRG.Y=Y;
-model_MtKRG.hyp_list=hyp_list;
-model_MtKRG.model_list=model_list;
+mdl_MFKRG.X=X;
+mdl_MFKRG.Y=Y;
+mdl_MFKRG.hyp_list=hyp_list;
+mdl_MFKRG.model_list=model_list;
 
-model_MtKRG.predict=pred_fcn;
+mdl_MFKRG.predict=pred_fcn;
 
     function Y_pred=predictMtKRG(X_pred,fid_num,model_list)
         % multi-level kriging predict function
