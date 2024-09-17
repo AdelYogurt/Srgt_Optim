@@ -19,4 +19,4 @@ model_cluster=clusterFCM(X,cluster_num,m);
 model_cluster=clusterFCMFS(X,cluster_num,m);
 model_cluster=clusterMS(X);
 
-clusterVisualize(model_cluster);
+displayCluster(model_cluster);

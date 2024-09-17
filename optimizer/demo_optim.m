@@ -10,7 +10,7 @@ close all hidden;
 % objcon_fcn=@(x) objconFcnG06(x);
 % vari_num=2;low_bou=[13,0];up_bou=[100,100];
 
-% NFE_max=100;iter_max=300;obj_torl=1e-6;con_torl=0;
+% NFE_max=100;iter_max=150;obj_torl=1e-6;con_torl=0;
 
 % optimizer=OptimFSRBF(NFE_max,iter_max,obj_torl,con_torl);
 % optimizer=OptimKRGCDE(NFE_max,iter_max,obj_torl,con_torl);

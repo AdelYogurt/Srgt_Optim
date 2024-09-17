@@ -4,53 +4,53 @@ close all hidden;
 
 %% gen data
 
-% fcn_LF=@(x) LFFcn(x);
-% fcn_HF=@(x) HFFcn(x);
+% fcn_lf=@(x) LFFcn(x);
+% fcn_hf=@(x) HFFcn(x);
 % 
-% fcn_LF_bou=@(x) 0.45+sin(2.2*pi*x)/2.5;
-% fcn_HF_bou=@(x) 0.5+sin(2.5*pi*x)/3;
+% fcn_lf_bou=@(x) 0.45+sin(2.2*pi*x)/2.5;
+% fcn_hf_bou=@(x) 0.5+sin(2.5*pi*x)/3;
 % 
 % vari_num=2;
 % 
-% x_LF_num=20;
-% X_LF=lhsdesign(x_LF_num,vari_num);
-% C_LF=fcn_LF(X_LF);
+% xlf_num=20;
+% XLF=lhsdesign(xlf_num,vari_num);
+% CLF=fcn_lf(XLF);
 % 
-% x_HF_num=10;
-% X_HF=lhsdesign(x_HF_num,vari_num);
-% C_HF=fcn_HF(X_HF);
+% xhf_num=10;
+% XHF=lhsdesign(xhf_num,vari_num);
+% CHF=fcn_hf(XHF);
 % 
 % low_bou=[0,0];
 % up_bou=[1,1];
 
 %% draw single-fidelity classification
 
-% load('C_MF_30.mat');
-
-% model_SF=classifySVM(X_HF,C_HF);
-% model_SF=classifyGPC(X_HF,C_HF);
-
+% load('CMF_30.mat');
+% 
+% classify=classifySVM(XHF,CHF);
+% classify=classifyGPC(XHF,CHF);
+% 
 % fig_hdl=figure(1);
-% classifyVisualize(model_SF,low_bou,up_bou,[],fig_hdl)
-% drawFcn(fcn_HF_bou,0,1,[],[],[],fig_hdl);
+% displayClassify([],classify,low_bou,up_bou)
+% drawFcn([],fcn_hf_bou,0,1);
 
 %% draw multi-fidelity classification
 
-% load('C_MF_30.mat');
-
-% model_MF=classifyCoGPC(X_HF,C_HF,X_LF,C_LF);
+% load('CMF_30.mat');
+% 
+% classify_mf=classifyCoGPC(XHF,CHF,XLF,CLF);
 % fig_hdl=figure(1);
-% classifyVisualize(model_MF,low_bou,up_bou,[],fig_hdl)
-% drawFcn(fcn_HF_bou,0,1,[],[],[],fig_hdl);
-% drawFcn(fcn_LF_bou,0,1,[],[],[],fig_hdl);
+% displayClassify([],classify_mf,low_bou,up_bou)
+% drawFcn([],fcn_hf_bou,0,1);
+% drawFcn([],fcn_lf_bou,0,1);
 
 %% drwa picture of comparison between GPC and CoGPC
 
-% load('C_MF_30.mat');
+% load('CMF_30.mat');
 % load('color.mat','my_color_map_light');
 % 
-% model_SF=classifyGPC(X_HF,C_HF);
-% model_MF=classifyCoGPC(X_HF,C_HF,X_LF,C_LF);
+% model_SF=classifyGPC(XHF,CHF);
+% model_MF=classifyCoGPC(XHF,CHF,XLF,CLF);
 % 
 % % draw zero value line
 % grid_num=100;
@@ -64,7 +64,7 @@ close all hidden;
 % [~,Prob_pred_MF]=model_MF.predict(X_pred);
 % Prob_pred_MF=reshape(Prob_pred_MF,grid_num+1,grid_num+1);
 % 
-% draw picture
+% % draw picture
 % fig_hdl=figure(1);
 % fig_hdl.set('Position',[488   200   680  420])
 % 
@@ -74,9 +74,9 @@ close all hidden;
 % colormap(my_color_map_light);
 % hold(axes_hdl,'on');
 % X_draw=0:0.01:1;
-% scatter(X_HF((C_HF>0),1),X_HF((C_HF>0),2),'or')
-% scatter(X_HF((C_HF<0),1),X_HF((C_HF<0),2),'ok')
-% line(axes_hdl,X_draw,fcn_HF_bou(X_draw),'LineStyle','-');
+% scatter(XHF((CHF>0),1),XHF((CHF>0),2),'or')
+% scatter(XHF((CHF<0),1),XHF((CHF<0),2),'ok')
+% line(axes_hdl,X_draw,fcn_hf_bou(X_draw),'LineStyle','-');
 % axes_hdl.set('Position',[0.0800,0.1200,0.38,0.6750],'FontSize',12,'FontName','Times New Roman');
 % xlabel('${\textit{x}}_{1}$','Interpreter','latex');ylabel('${\textit{x}}_{2}$','Interpreter','latex');grid on;box on;
 % 
@@ -86,19 +86,19 @@ close all hidden;
 % colormap(my_color_map_light);
 % hold(axes_hdl,'on');
 % X_draw=0:0.01:1;
-% SP_HF=scatter(X_HF((C_HF>0),1),X_HF((C_HF>0),2),'or');
-% SN_HF=scatter(X_HF((C_HF<0),1),X_HF((C_HF<0),2),'ok');
-% line_HF=line(axes_hdl,X_draw,fcn_HF_bou(X_draw),'LineStyle','-');
-% SP_LF=scatter(X_LF((C_LF>0),1),X_LF((C_LF>0),2),'*r');
-% SN_LF=scatter(X_LF((C_LF<0),1),X_LF((C_LF<0),2),'*k');
-% line_LF=line(axes_hdl,X_draw,fcn_LF_bou(X_draw),'LineStyle','--');
+% SP_hf=scatter(XHF((CHF>0),1),XHF((CHF>0),2),'or');
+% SN_hf=scatter(XHF((CHF<0),1),XHF((CHF<0),2),'ok');
+% line_hf=line(axes_hdl,X_draw,fcn_hf_bou(X_draw),'LineStyle','-');
+% SP_lf=scatter(XLF((CLF>0),1),XLF((CLF>0),2),'*r');
+% SN_lf=scatter(XLF((CLF<0),1),XLF((CLF<0),2),'*k');
+% line_lf=line(axes_hdl,X_draw,fcn_lf_bou(X_draw),'LineStyle','--');
 % axes_hdl.set('Position',[0.5400,0.1200,0.38,0.6750],'FontSize',12,'FontName','Times New Roman');
 % xlabel('${\textit{x}}_{1}$','Interpreter','latex');ylabel('${\textit{x}}_{2}$','Interpreter','latex');grid on;box on;
 % 
-% legend_handle=legend([SP_HF,SN_HF,line_HF,SP_LF,SN_LF,line_LF],'\fontname{宋体}高精度正样本点','\fontname{宋体}高精度负样本点','\fontname{宋体}高精度分类边界','\fontname{宋体}低精度正样本点','\fontname{宋体}低精度负样本点','\fontname{宋体}低精度分类边界');
+% legend_handle=legend([SP_hf,SN_hf,line_hf,SP_lf,SN_lf,line_lf],'\fontname{宋体}高精度正样本点','\fontname{宋体}高精度负样本点','\fontname{宋体}高精度分类边界','\fontname{宋体}低精度正样本点','\fontname{宋体}低精度负样本点','\fontname{宋体}低精度分类边界');
 % legend_handle.set('Orientation','horizontal','NumColumns',3,'Position',[0.2,0.85,0.60,0.1])
 % 
-% print(fig_hdl,'MFGPC_GPC.emf', '-dmeta');
+% % print(fig_hdl,'MFGPC_GPC.emf', '-dmeta');
 
 %% function
 

@@ -278,7 +278,7 @@ classdef OptimSACORS < handle
                         end
 
                         if self.FLAG_DRAW_FIGURE && vari_num < 3
-                            classifyVisualize(self.GPC_conv,low_bou,up_bou);
+                            displayClassify(self.GPC_conv,low_bou,up_bou);
                             line(X(:,1),X(:,2),'Marker','o','color','k','LineStyle','none');
                         end
                     else
@@ -375,7 +375,7 @@ classdef OptimSACORS < handle
                             end
 
                             if self.FLAG_DRAW_FIGURE && vari_num < 3
-                                classifyVisualize(self.GPC_pareto,low_bou,up_bou);
+                                displayClassify(self.GPC_pareto,low_bou,up_bou);
                                 line(trial_point(:,1),trial_point(:,2),'Marker','o','color','k','LineStyle','none');
                                 line(X_add(:,1),X_add(:,2),'Marker','o','color','g','LineStyle','none');
                             end
@@ -652,14 +652,14 @@ classdef OptimSACORS < handle
             % generate obj surrogate
             Srgt_obj=cell(size(obj_list,2),1);
             for obj_idx=1:size(obj_list,2)
-                Srgt_obj{obj_idx}=srgtRBF(x_list,obj_list(:,obj_idx));
+                Srgt_obj{obj_idx}=srgtsfRBF(x_list,obj_list(:,obj_idx));
             end
 
             % generate con surrogate
             if ~isempty(con_list)
                 Srgt_con=cell(size(con_list,2),1);
                 for con_idx=1:size(con_list,2)
-                    Srgt_con{con_idx}=srgtRBF(x_list,con_list(:,con_idx));
+                    Srgt_con{con_idx}=srgtsfRBF(x_list,con_list(:,con_idx));
                 end
             else
                 Srgt_con=[];
@@ -669,7 +669,7 @@ classdef OptimSACORS < handle
             if ~isempty(coneq_list)
                 Srgt_coneq=cell(size(coneq_list,2),1);
                 for coneq_idx=1:size(coneq_list,2)
-                    Srgt_coneq{coneq_idx}=srgtRBF(x_list,coneq_list(:,coneq_idx));
+                    Srgt_coneq{coneq_idx}=srgtsfRBF(x_list,coneq_list(:,coneq_idx));
                 end
             else
                 Srgt_coneq=[];

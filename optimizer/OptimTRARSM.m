@@ -474,14 +474,14 @@ classdef OptimTRARSM < handle
             % generate obj surrogate
             Srgt_obj=cell(size(obj_list,2),1);
             for obj_idx=1:size(obj_list,2)
-                Srgt_obj{obj_idx}=srgtRSM(x_list,obj_list(:,obj_idx));
+                Srgt_obj{obj_idx}=srgtsfPRS(x_list,obj_list(:,obj_idx));
             end
 
             % generate con surrogate
             if ~isempty(con_list)
                 Srgt_con=cell(size(con_list,2),1);
                 for con_idx=1:size(con_list,2)
-                    Srgt_con{con_idx}=srgtRSM(x_list,con_list(:,con_idx));
+                    Srgt_con{con_idx}=srgtsfPRS(x_list,con_list(:,con_idx));
                 end
             else
                 Srgt_con=[];
@@ -491,7 +491,7 @@ classdef OptimTRARSM < handle
             if ~isempty(coneq_list)
                 Srgt_coneq=cell(size(coneq_list,2),1);
                 for coneq_idx=1:size(coneq_list,2)
-                    Srgt_coneq{coneq_idx}=srgtRSM(x_list,coneq_list(:,coneq_idx));
+                    Srgt_coneq{coneq_idx}=srgtsfPRS(x_list,coneq_list(:,coneq_idx));
                 end
             else
                 Srgt_coneq=[];

@@ -405,7 +405,7 @@ classdef OptimGLoSADE < handle
                 Obj_RBF=Obj(idx_list,:);
 
                 % find most uncertain point base on RBF
-                srgt_obj=srgtRBF(X_RBF,Obj_RBF);
+                srgt_obj=srgtsfRBF(X_RBF,Obj_RBF);
                 [~,var_pred]=srgt_obj.predict(pop_trial);
 
                 [~, idx]=max(var_pred);
@@ -530,14 +530,14 @@ classdef OptimGLoSADE < handle
             % generate obj surrogate
             Srgt_obj=cell(size(obj_list,2),1);
             for obj_idx=1:size(obj_list,2)
-                Srgt_obj{obj_idx}=srgtRBF(x_list,obj_list(:,obj_idx));
+                Srgt_obj{obj_idx}=srgtsfRBF(x_list,obj_list(:,obj_idx));
             end
 
             % generate con surrogate
             if ~isempty(con_list)
                 Srgt_con=cell(size(con_list,2),1);
                 for con_idx=1:size(con_list,2)
-                    Srgt_con{con_idx}=srgtRBF(x_list,con_list(:,con_idx));
+                    Srgt_con{con_idx}=srgtsfRBF(x_list,con_list(:,con_idx));
                 end
             else
                 Srgt_con=[];
@@ -547,7 +547,7 @@ classdef OptimGLoSADE < handle
             if ~isempty(coneq_list)
                 Srgt_coneq=cell(size(coneq_list,2),1);
                 for coneq_idx=1:size(coneq_list,2)
-                    Srgt_coneq{coneq_idx}=srgtRBF(x_list,coneq_list(:,coneq_idx));
+                    Srgt_coneq{coneq_idx}=srgtsfRBF(x_list,coneq_list(:,coneq_idx));
                 end
             else
                 Srgt_coneq=[];
@@ -769,7 +769,7 @@ end
 
 %% surrogate function
 
-function model_RBF=srgtRBF(X,Y,basis_fcn)
+function model_RBF=srgtsfRBF(X,Y,basis_fcn)
 % generate radial basis function surrogate model
 % input data will be normalize by average and standard deviation of data
 %
