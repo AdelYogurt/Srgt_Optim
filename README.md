@@ -2,7 +2,7 @@
 
 ## dir
 
-`benchmark/`: benchmark problem. 
+`benchmark/`: Benchmark problem.  
 `common/`: Common use debug function.  
 `LHD/`: Latin hypercubic design method.  
 `ML/`: Light machine learning algorithm.  
