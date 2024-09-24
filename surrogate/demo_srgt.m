@@ -30,7 +30,7 @@ close all;
 
 %% one dimension double-fidelity surrogate model test
 
-% load('Forrester.mat');
+% load('forrester.mat');
 
 % srgtsf=srgtsfPRS(XHF,YHF);
 % srgtsf=srgtsfRBF(XHF,YHF);

@@ -2,7 +2,8 @@
 
 ## dir
 
-`common/`: Benchmark and common use debug function.  
+`benchmark/`: benchmark problem. 
+`common/`: Common use debug function.  
 `LHD/`: Latin hypercubic design method.  
 `ML/`: Light machine learning algorithm.  
 `optimizer/`: Surrogate base optimization algorithm.  
@@ -10,7 +11,7 @@
 
 ## about optimizer
 
-Surrogate base optimization algorithm(SBOA) is used to solve expensive black-box problem.  
+Surrogate Base Optimization Algorithm(SBOA) is used to solve expensive black-box problem.  
 Expensive black-box problem is time consume problem. The fewer model calls, the better.  
 During optimize, number of function to evaluate(NFE) is important.
 
