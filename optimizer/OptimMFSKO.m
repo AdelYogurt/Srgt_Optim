@@ -18,9 +18,7 @@ classdef OptimMFSKO < handle
     % fcn: function, srgt: surrogate
     % lib: library, init: initial, rst: restart, potl: potential
     %
-
-    % basic parameter
-    properties
+    properties % basic parameter
         predict;
         obj_fcn_srgt;
         con_fcn_srgt;
@@ -36,8 +34,8 @@ classdef OptimMFSKO < handle
 
         NFE_max;
         iter_max;
-        obj_torl;
-        con_torl;
+        obj_tol;
+        con_tol;
     end
 
     properties
@@ -51,8 +49,7 @@ classdef OptimMFSKO < handle
         % optimize process option
         datalib_filestr=''; % datalib save mat name
         dataoptim_filestr=''; % optimize save mat name
-        nomlz_value=100; % max obj when normalize obj,con,coneq
-        add_torl=1000*eps; % surrogate add point protect range
+        add_tol=1000*eps; % surrogate add point protect range
         X_init=[]; % initial sample point
         criteria='AEI'; % infill criteria
         constraint='auto'; % constraint process method
@@ -70,13 +67,13 @@ classdef OptimMFSKO < handle
 
     % main function
     methods
-        function self=OptimMFSKO(NFE_max,iter_max,obj_torl,con_torl)
+        function self=OptimMFSKO(NFE_max,iter_max,obj_tol,con_tol)
             % initialize self
             %
             if nargin < 4
-                con_torl=[];
+                con_tol=[];
                 if nargin < 3
-                    obj_torl=[];
+                    obj_tol=[];
                     if nargin < 2
                         iter_max=[];
                         if nargin < 1
@@ -86,13 +83,13 @@ classdef OptimMFSKO < handle
                 end
             end
 
-            if isempty(con_torl),con_torl=1e-3;end
-            if isempty(obj_torl),obj_torl=1e-6;end
+            if isempty(con_tol),con_tol=1e-3;end
+            if isempty(obj_tol),obj_tol=1e-6;end
 
             self.NFE_max=NFE_max;
             self.iter_max=iter_max;
-            self.con_torl=con_torl;
-            self.obj_torl=obj_torl;
+            self.con_tol=con_tol;
+            self.obj_tol=obj_tol;
         end
 
         function [x_best,obj_best,NFE,output,con_best,coneq_best,vio_best]=optimize(self,objcon_fcn_list,vari_num,low_bou,up_bou,cost_list)
@@ -145,7 +142,7 @@ classdef OptimMFSKO < handle
 
             self.dataoptim.iter=self.dataoptim.iter+1;
             while ~self.dataoptim.done
-                % construct kriging model
+                % construct Co-kriging model
                 [self.obj_fcn_srgt,self.con_fcn_srgt,...
                     self.Srgt_obj,self.Srgt_con,self.Srgt_coneq]=self.getSrgtFcnCoKRG...
                     (X,Obj,Con,Coneq,...
@@ -175,7 +172,7 @@ classdef OptimMFSKO < handle
 
                 % information
                 if self.FLAG_DRAW_FIGURE && vari_num < 3
-                    surrogateVisualize(self.Srgt_obj{1},low_bou,up_bou);
+                    displaySrgt([],self.Srgt_obj{1},low_bou,up_bou);
                     if vari_num == 1
                         line(x_infill(1),obj_infill,'Marker','o','color','r');
                     else
@@ -194,7 +191,7 @@ classdef OptimMFSKO < handle
 
                 % convergence judgment
                 if self.FLAG_CONV_JUDGE && self.dataoptim.iter > 2
-                    if ( abs((obj_infill-obj_infill_old)/obj_infill_old) < self.obj_torl && ...
+                    if ( abs((obj_infill-obj_infill_old)/obj_infill_old) < self.obj_tol && ...
                             ((~isempty(vio_infill) && vio_infill == 0) || isempty(vio_infill)) )
                         self.dataoptim.done=true;
                     end
@@ -253,7 +250,7 @@ classdef OptimMFSKO < handle
                 if isempty(data_lib)
                     if isempty(self.datalib_filestr),filestr=[];
                     else,filestr=[self.datalib_filestr,num2str(fid_idx,'_%d')];end
-                    data_lib=self.datalibGet(vari_num,low_bou,up_bou,self.con_torl,filestr);
+                    data_lib=self.datalibGet(vari_num,low_bou,up_bou,self.con_tol,filestr);
                 end
 
                 if size(data_lib.X,1) < sample_num_init_fid
@@ -300,8 +297,8 @@ classdef OptimMFSKO < handle
                 else
                     dist=vecnorm(datalib.X-x_add,2,2);
                 end
-                if any(dist < self.add_torl)
-                    overlap_idx=find(dist < self.add_torl,1);
+                if any(dist < self.add_tol)
+                    overlap_idx=find(dist < self.add_tol,1);
                     repeat_idx(x_idx)=overlap_idx;
                     datalib_idx(x_idx)=overlap_idx;
                 else
@@ -386,7 +383,7 @@ classdef OptimMFSKO < handle
                 [x_infill_list(fid_idx,:),fval_infill_list(fid_idx),exit_flag]=run(ms,problem,rs);
 
                 if (exit_flag == -2 && strcmp(self.constraint,'auto')) ...
-                        || norm(x_infill_list(fid_idx,:)-x_init) < self.add_torl
+                        || norm(x_infill_list(fid_idx,:)-x_init) < self.add_tol
                     obj_fcn=@(x) infill_fcn(x,fid_idx);
                     problem.objective=obj_fcn;
                     problem.nonlcon=self.con_fcn_srgt;
@@ -465,14 +462,14 @@ classdef OptimMFSKO < handle
             % generate obj surrogate
             if isempty(Srgt_obj),Srgt_obj=cell(size(obj_list,2),1);end
             for obj_idx=1:size(obj_list,2)
-                Srgt_obj{obj_idx}=srgtMFCoKRG(x_list,loadIdx(obj_list,obj_idx),Srgt_obj{obj_idx});
+                Srgt_obj{obj_idx}=srgtmfCoKRG(x_list,loadIdx(obj_list,obj_idx),Srgt_obj{obj_idx});
             end
 
             % generate con surrogate
             if ~isempty(con_list{1})
                 if isempty(Srgt_con),Srgt_con=cell(size(con_list,2),1);end
                 for con_idx=1:size(con_list,2)
-                    Srgt_con{con_idx}=srgtMFCoKRG(x_list,loadIdx(con_list,con_idx),Srgt_con{con_idx});
+                    Srgt_con{con_idx}=srgtmfCoKRG(x_list,loadIdx(con_list,con_idx),Srgt_con{con_idx});
                 end
             else
                 Srgt_con=[];
@@ -482,7 +479,7 @@ classdef OptimMFSKO < handle
             if ~isempty(coneq_list{1})
                 if isempty(Srgt_coneq),Srgt_coneq=cell(size(coneq_list,2),1);end
                 for coneq_idx=1:size(coneq_list,2)
-                    Srgt_coneq{coneq_idx}=srgtMFCoKRG(x_list,loadIdx(coneq_list,coneq_idx),Srgt_coneq{coneq_idx});
+                    Srgt_coneq{coneq_idx}=srgtmfCoKRG(x_list,loadIdx(coneq_list,coneq_idx),Srgt_coneq{coneq_idx});
                 end
             else
                 Srgt_coneq=[];
@@ -543,13 +540,13 @@ classdef OptimMFSKO < handle
 
     % data library function
     methods(Static)
-        function datalib=datalibGet(vari_num,low_bou,up_bou,con_torl,datalib_filestr)
+        function datalib=datalibGet(vari_num,low_bou,up_bou,con_tol,datalib_filestr)
             % generate data library object
             %
             if nargin < 5
                 datalib_filestr=[];
-                if nargin < 4 || isempty(con_torl)
-                    con_torl=0;
+                if nargin < 4 || isempty(con_tol)
+                    con_tol=0;
                 end
             end
 
@@ -557,7 +554,7 @@ classdef OptimMFSKO < handle
             datalib.vari_num=vari_num;
             datalib.low_bou=low_bou;
             datalib.up_bou=up_bou;
-            datalib.con_torl=con_torl;
+            datalib.con_tol=con_tol;
             datalib.filestr=datalib_filestr;
 
             datalib.X=[];
@@ -574,8 +571,8 @@ classdef OptimMFSKO < handle
             [obj,con,coneq]=objcon_fcn(x);vio=[]; % eval value
 
             % calculate vio
-            if ~isempty(con),vio=[vio,max(max(con-datalib.con_torl,0),[],2)];end
-            if ~isempty(coneq),vio=[vio,max(max(abs(coneq)-datalib.con_torl,0),[],2)];end
+            if ~isempty(con),vio=[vio,max(max(con-datalib.con_tol,0),[],2)];end
+            if ~isempty(coneq),vio=[vio,max(max(abs(coneq)-datalib.con_tol,0),[],2)];end
             vio=max(vio,[],2);
 
             datalib.X=[datalib.X;x];

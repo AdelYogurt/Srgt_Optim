@@ -1,12 +1,12 @@
-function srgt=srgtdfCoKRG(XLF,YLF,XHF,YHF,option)
+function srgt=srgtdfCoKRG(X_LF,Y_LF,X_HF,Y_HF,option)
 % generate Co-Kriging surrogate model
 % input data will be normalize by average and standard deviation of data
 %
 % input:
-% XLF (matrix): low fidelity trained X, x_num x vari_num
-% YLF (vector): low fidelity trained Y, x_num x 1
-% XHF (matrix): high fidelity trained X, x_num x vari_num
-% YHF (vector): high fidelity trained Y, x_num x 1
+% X_LF (matrix): low fidelity trained X, x_num x vari_num
+% Y_LF (vector): low fidelity trained Y, x_num x 1
+% X_HF (matrix): high fidelity trained X, x_num x vari_num
+% Y_HF (vector): high fidelity trained Y, x_num x 1
 % option (struct): optional input, construct option
 %
 % option include:
@@ -15,7 +15,7 @@ function srgt=srgtdfCoKRG(XLF,YLF,XHF,YHF,option)
 % optimize_option (optimoptions): fminunc optimize option
 % reg_fcn (function handle): basis function, default is linear
 % cov_fcn (function handle): kernel function, default is gauss
-% hyp_lf (array): hyperparameter value of kernel function for low fidelity
+% hyp_LF (array): hyperparameter value of kernel function for low fidelity
 % hyp_bias (array): hyperparameter value of kernel function for bias
 %
 % output:
@@ -35,7 +35,7 @@ if isempty(option), option=struct();end
 if ~isfield(option,'optimize_hyp'), option.('optimize_hyp')=true;end
 if ~isfield(option,'simplify_hyp'), option.('simplify_hyp')=true;end
 if option.('simplify_hyp'),FLAG_GRAD=false;else,FLAG_GRAD=true;end
-if ~isfield(option,'model_option'), option.('optimize_option')=optimoptions...
+if ~isfield(option,'optimize_option'), option.('optimize_option')=optimoptions...
         ('fminunc','Display','none',...
         'OptimalityTolerance',1e-6,...
         'FiniteDifferenceStepSize',1e-5,...
@@ -47,32 +47,32 @@ if ~isfield(option,'cov_fcn'), option.('cov_fcn')=[];end
 
 % Co-Kriging option
 if ~isfield(option,'hyp_bias'), option.('hyp_bias')=[];end
-if ~isfield(option,'hyp_lf'), option.('hyp_lf')=[];end
+if ~isfield(option,'hyp_LF'), option.('hyp_LF')=[];end
 
 % normalize data
-X=[XLF;XHF];
-Y=[YLF;YHF];
+X=[X_LF;X_HF];
+Y=[Y_LF;Y_HF];
 [x_num,vari_num]=size(X);
-xlf_num=size(XLF,1);
-xhf_num=size(XHF,1);
+x_LF_num=size(X_LF,1);
+x_HF_num=size(X_HF,1);
 aver_X=mean(X);
 stdD_X=std(X);stdD_X(stdD_X == 0)=1;
 aver_Y=mean(Y);
 stdD_Y=std(Y);stdD_Y(stdD_Y == 0)=1;
-XLF_norm=(XLF-aver_X)./stdD_X;
-YLF_norm=(YLF-aver_Y)./stdD_Y;
-XHF_norm=(XHF-aver_X)./stdD_X;
-YHF_norm=(YHF-aver_Y)./stdD_Y;
-X_norm=[XLF_norm;XHF_norm];
-Y_norm=[YLF_norm;YHF_norm];
+X_LF_norm=(X_LF-aver_X)./stdD_X;
+Y_LF_norm=(Y_LF-aver_Y)./stdD_Y;
+X_HF_norm=(X_HF-aver_X)./stdD_X;
+Y_HF_norm=(Y_HF-aver_Y)./stdD_Y;
+X_norm=[X_LF_norm;X_HF_norm];
+Y_norm=[Y_LF_norm;Y_HF_norm];
 
 % all initial X_dis_sq
 dr_sq=zeros(x_num,x_num,vari_num);
 for vari_idx=1:vari_num
     dr_sq(:,:,vari_idx)=(X_norm(:,vari_idx)-X_norm(:,vari_idx)').^2;
 end
-dr_sq_lf=dr_sq(1:xlf_num,1:xlf_num,:);
-dr_sq_hf=dr_sq(xlf_num+1:end,xlf_num+1:end,:);
+dr_sq_LF=dr_sq(1:x_LF_num,1:x_LF_num,:);
+dr_sq_HF=dr_sq(x_LF_num+1:end,x_LF_num+1:end,:);
 
 % regression function define
 reg_fcn=option.('reg_fcn');
@@ -83,23 +83,23 @@ end
 
 % hyperparameter define
 hyp_bias=option.('hyp_bias');
-if isempty(hyp_bias),hyp_bias=[zeros(1,vari_num),mean(YHF)/mean(YLF)];end
-hyp_lf=option.('hyp_lf');
-if isempty(hyp_lf),hyp_lf=ones(1,vari_num);end
+if isempty(hyp_bias),hyp_bias=[zeros(1,vari_num),mean(Y_HF)/mean(Y_LF)];end
+hyp_LF=option.('hyp_LF');
+if isempty(hyp_LF),hyp_LF=ones(1,vari_num);end
 simplify_hyp=option.('simplify_hyp');
 
 % first step
 % construct low-fidelity model
 
 % calculate reg
-HLF_norm=(reg_fcn(XLF)-aver_Y)./stdD_Y;
+HLF_norm=(reg_fcn(X_LF)-aver_Y)./stdD_Y;
 
 % if optimize hyperparameter
 if option.optimize_hyp
-    obj_fcn_hyp=@(hyp) probNLLKRG(dr_sq_lf,YLF_norm,xlf_num,vari_num,hyp,HLF_norm);
+    obj_fcn_hyp=@(hyp) probNLLKRG(dr_sq_LF,Y_LF_norm,x_LF_num,vari_num,hyp,HLF_norm);
 
     if simplify_hyp
-        hyp_lf=mean(hyp_lf);
+        hyp_LF=mean(hyp_LF);
         low_bou_hyp=-4;
         up_bou_hyp=4;
     else
@@ -107,43 +107,43 @@ if option.optimize_hyp
         up_bou_hyp=4*ones(1,vari_num);
     end
 
-    % [fval,gradient]=obj_fcn_hyp(hyp_lf)
-    % [~,gradient_differ]=differ(obj_fcn_hyp,hyp_lf)
+    % [fval,gradient]=obj_fcn_hyp(hyp_LF)
+    % [~,gradient_differ]=differ(obj_fcn_hyp,hyp_LF)
     % drawFcn(obj_fcn_hyp,low_bou_hyp,up_bou_hyp);
 
-    [hyp_lf,~,~,~]=fminunc(obj_fcn_hyp,hyp_lf,option.('optimize_option'));
-    hyp_lf=min(hyp_lf,up_bou_hyp);hyp_lf=max(hyp_lf,low_bou_hyp);
+    [hyp_LF,~,~,~]=fminunc(obj_fcn_hyp,hyp_LF,option.('optimize_option'));
+    hyp_LF=min(hyp_LF,up_bou_hyp);hyp_LF=max(hyp_LF,low_bou_hyp);
 
-    if simplify_hyp, hyp_lf=hyp_lf*ones(1,vari_num);end
+    if simplify_hyp, hyp_LF=hyp_LF*ones(1,vari_num);end
 end
 
 % get parameter
-[cov_lf,L_cov_lf,beta_lf,sigma_sq_lf,dLR_H_lf,~,dLR_U_lf]=calCovKRG...
-    (dr_sq_lf,YLF_norm,xlf_num,vari_num,exp(hyp_lf),HLF_norm);
-sigma_sq_lf=sigma_sq_lf*stdD_Y^2; % renormalize data
-gamma_lf=L_cov_lf'\dLR_U_lf;
-inv_FTcovF_lf=(dLR_H_lf'*dLR_H_lf)\eye(size(HLF_norm,2));
+[cov_LF,L_cov_LF,beta_LF,sigma_sq_LF,dLR_H_LF,~,dLR_U_LF]=calCovKRG...
+    (dr_sq_LF,Y_LF_norm,x_LF_num,vari_num,exp(hyp_LF),HLF_norm);
+sigma_sq_LF=sigma_sq_LF*stdD_Y^2; % renormalize data
+gamma_LF=L_cov_LF'\dLR_U_LF;
+inv_FTcovF_LF=(dLR_H_LF'*dLR_H_LF)\eye(size(HLF_norm,2));
 
 % initialization predict function
-pred_fcn_lf=@(X_predict) predictKRG...
-    (X_predict,XLF_norm,aver_X,stdD_X,aver_Y,stdD_Y,...
-    xlf_num,vari_num,exp(hyp_lf),reg_fcn,...
-    L_cov_lf,beta_lf,sigma_sq_lf,gamma_lf,dLR_H_lf,inv_FTcovF_lf);
+pred_fcn_LF=@(X_predict) predictKRG...
+    (X_predict,X_LF_norm,aver_X,stdD_X,aver_Y,stdD_Y,...
+    x_LF_num,vari_num,exp(hyp_LF),reg_fcn,...
+    L_cov_LF,beta_LF,sigma_sq_LF,gamma_LF,dLR_H_LF,inv_FTcovF_LF);
 
 % second step
 % construct bias model
 % notice rho is hyperparamter
 
 % evaluate error in high fidelity point
-YHF_pred_norm=(pred_fcn_lf(XHF)-aver_Y)./stdD_Y;
+Y_HF_pred_norm=(pred_fcn_LF(X_HF)-aver_Y)./stdD_Y;
 
 % calculate reg
-HD_norm=(reg_fcn(XHF)-aver_Y)./stdD_Y;
+HD_norm=(reg_fcn(X_HF)-aver_Y)./stdD_Y;
 
 % optimal to get hyperparameter
 % if optimize hyperparameter
 if option.optimize_hyp
-    obj_fcn_hyp=@(hyp) probNLLBiasKRG(dr_sq_hf,YHF_norm,YHF_pred_norm,xhf_num,vari_num,hyp,HD_norm);
+    obj_fcn_hyp=@(hyp) probNLLBiasKRG(dr_sq_HF,Y_HF_norm,Y_HF_pred_norm,x_HF_num,vari_num,hyp,HD_norm);
 
     if simplify_hyp
         hyp_bias=[mean(hyp_bias(1:end-1)),hyp_bias(end)];
@@ -165,9 +165,9 @@ if option.optimize_hyp
 end
 
 % get parameter
-Y_bias_norm=YHF_norm-hyp_bias(end)*YHF_pred_norm;
+Y_bias_norm=Y_HF_norm-hyp_bias(end)*Y_HF_pred_norm;
 [cov_bias,L_cov_bias,~,sigma_sq_bias,~,~,~]=calCovKRG...
-    (dr_sq_hf,Y_bias_norm,xhf_num,vari_num,exp(hyp_bias),HD_norm);
+    (dr_sq_HF,Y_bias_norm,x_HF_num,vari_num,exp(hyp_bias),HD_norm);
 sigma_sq_bias=sigma_sq_bias*stdD_Y^2; % renormalize data
 
 % get total model parameter
@@ -175,24 +175,24 @@ H_norm=[
     HLF_norm,zeros(size(HLF_norm,1),size(HD_norm,2));
     HD_norm*hyp_bias(end),HD_norm;];
 [cov,L_cov,beta,~,dLR_H,~,dLR_U]=calCovCoKRG...
-    (dr_sq,Y_norm,x_num,xhf_num,xlf_num,vari_num,...
-    exp(hyp_bias(1:end-1)),hyp_bias(end),exp(hyp_lf),...
-    sigma_sq_bias,sigma_sq_lf,H_norm);
+    (dr_sq,Y_norm,x_num,x_HF_num,x_LF_num,vari_num,...
+    exp(hyp_bias(1:end-1)),hyp_bias(end),exp(hyp_LF),...
+    sigma_sq_bias,sigma_sq_LF,H_norm);
 gamma=L_cov'\dLR_U;
 inv_FTcovF=(dLR_H'*dLR_H)\eye(size(H_norm,2));
 
 % initialization predict function
 pred_fcn=@(X_pred) predictCoKRG...
     (X_pred,X_norm,aver_X,stdD_X,aver_Y,stdD_Y,...
-    x_num,vari_num,xhf_num,xlf_num,exp(hyp_bias(1:end-1)),hyp_bias(end),exp(hyp_lf),reg_fcn,...
-    L_cov,beta,sigma_sq_bias,sigma_sq_lf,gamma,dLR_H,inv_FTcovF);
+    x_num,vari_num,x_HF_num,x_LF_num,exp(hyp_bias(1:end-1)),hyp_bias(end),exp(hyp_LF),reg_fcn,...
+    L_cov,beta,sigma_sq_bias,sigma_sq_LF,gamma,dLR_H,inv_FTcovF);
 
 srgt=option;
-srgt.X={XLF,XHF};
-srgt.Y={YLF,YHF};
-srgt.hyp_lf=hyp_lf;
+srgt.X={X_LF,X_HF};
+srgt.Y={Y_LF,Y_HF};
+srgt.hyp_LF=hyp_LF;
 srgt.hyp_bias=hyp_bias;
-srgt.predict_list={pred_fcn_lf;pred_fcn};
+srgt.predict_list={pred_fcn_LF;pred_fcn};
 srgt.predict=pred_fcn;
 
     function [fval,grad]=probNLLKRG(X_dis_sq,Y,x_num,vari_num,hyp,H)
@@ -326,16 +326,16 @@ srgt.predict=pred_fcn;
     end
 
     function [cov,L_cov,beta,sigma_sq,dLR_H,dLR_Y,dLR_U]=calCovCoKRG...
-            (X_dis_sq,Y,x_num,xhf_num,xlf_num,vari_num,...
-            theta_bias,rho,theta_lf,sigma2_bias,sigma2_lf,H)
+            (X_dis_sq,Y,x_num,x_HF_num,x_LF_num,vari_num,...
+            theta_bias,rho,theta_LF,sigma2_bias,sigma2_LF,H)
         % calculate covariance of x with multi fidelity
         % hyp: theta_H, theta_L, rho
         %
 
         % exp of x__x with theta H
-        cov_H=zeros(xhf_num);
+        cov_H=zeros(x_HF_num);
         for vari_i=1:vari_num
-            cov_H=cov_H+X_dis_sq(xlf_num+1:end,xlf_num+1:end,vari_i)*theta_bias(vari_i);
+            cov_H=cov_H+X_dis_sq(x_LF_num+1:end,x_LF_num+1:end,vari_i)*theta_bias(vari_i);
         end
         cov_H=exp(-cov_H/vari_num)*sigma2_bias;
 
@@ -343,20 +343,20 @@ srgt.predict=pred_fcn;
         exp_disL=zeros(x_num);
         for vari_i=1:vari_num
             exp_disL=exp_disL+...
-                X_dis_sq(:,:,vari_i)*theta_lf(vari_i);
+                X_dis_sq(:,:,vari_i)*theta_LF(vari_i);
         end
-        exp_disL=exp(-exp_disL/vari_num)*sigma2_lf;
+        exp_disL=exp(-exp_disL/vari_num)*sigma2_LF;
         % times rho: HH to rho2, HL to rho, LL to 1
         cov_L=exp_disL;
-        cov_L(xlf_num+1:end,xlf_num+1:end)=...
-            (rho*rho)*exp_disL(xlf_num+1:end,xlf_num+1:end);
-        cov_L(xlf_num+1:end,1:xlf_num)=...
-            rho*exp_disL(xlf_num+1:end,1:xlf_num);
-        cov_L(1:xlf_num,xlf_num+1:end)=...
-            cov_L(xlf_num+1:end,1:xlf_num)';
+        cov_L(x_LF_num+1:end,x_LF_num+1:end)=...
+            (rho*rho)*exp_disL(x_LF_num+1:end,x_LF_num+1:end);
+        cov_L(x_LF_num+1:end,1:x_LF_num)=...
+            rho*exp_disL(x_LF_num+1:end,1:x_LF_num);
+        cov_L(1:x_LF_num,x_LF_num+1:end)=...
+            cov_L(x_LF_num+1:end,1:x_LF_num)';
 
         cov=cov_L;
-        cov(xlf_num+1:end,xlf_num+1:end)=cov(xlf_num+1:end,xlf_num+1:end)+cov_H;
+        cov(x_LF_num+1:end,x_LF_num+1:end)=cov(x_LF_num+1:end,x_LF_num+1:end)+cov_H;
 
         cov=cov+eye(x_num)*((1000+x_num)*eps);
 
@@ -414,8 +414,8 @@ srgt.predict=pred_fcn;
 
     function [Y_pred,Var_pred]=predictCoKRG...
             (X_pred,X_norm,aver_X,stdD_X,aver_Y,stdD_Y,...
-            x_num,vari_num,xhf_num,xlf_num,theta_bias,rho,theta_lf,reg_fcn,...
-            L_cov,beta,sigma_sq_bias,sigma_sq_lf,gamma,dLR_H,inv_FTcovF)
+            x_num,vari_num,x_HF_num,x_LF_num,theta_bias,rho,theta_LF,reg_fcn,...
+            L_cov,beta,sigma_sq_bias,sigma_sq_LF,gamma,dLR_H,inv_FTcovF)
         % kriging surrogate predict function
         % input predict_x and kriging model
         % predict_x is row vector
@@ -435,22 +435,22 @@ srgt.predict=pred_fcn;
         end
 
         % bias
-        exp_dis_bias=zeros(xhf_num,x_pred_num);
+        exp_dis_bias=zeros(x_HF_num,x_pred_num);
         for vari_i=1:vari_num
-            exp_dis_bias=exp_dis_bias+X_pred_dis_sq(xlf_num+1:end,:,vari_i)*theta_bias(vari_i);
+            exp_dis_bias=exp_dis_bias+X_pred_dis_sq(x_LF_num+1:end,:,vari_i)*theta_bias(vari_i);
         end
         exp_dis_bias=exp(-exp_dis_bias/vari_num);
 
         % LF
-        exp_dis_lf=zeros(x_num,x_pred_num);
+        exp_dis_LF=zeros(x_num,x_pred_num);
         for vari_i=1:vari_num
-            exp_dis_lf=exp_dis_lf+X_pred_dis_sq(:,:,vari_i)*theta_lf(vari_i);
+            exp_dis_LF=exp_dis_LF+X_pred_dis_sq(:,:,vari_i)*theta_LF(vari_i);
         end
-        exp_dis_lf=exp(-exp_dis_lf/vari_num);
+        exp_dis_LF=exp(-exp_dis_LF/vari_num);
 
         % covariance of X_predict
-        cov_pred=exp_dis_lf*rho*sigma_sq_lf;
-        cov_pred(xlf_num+1:end,:)=cov_pred(xlf_num+1:end,:)*rho+...
+        cov_pred=exp_dis_LF*rho*sigma_sq_LF;
+        cov_pred(x_LF_num+1:end,:)=cov_pred(x_LF_num+1:end,:)*rho+...
             sigma_sq_bias*exp_dis_bias;
 
         % predict base fval
@@ -459,7 +459,7 @@ srgt.predict=pred_fcn;
         % predict variance
         dLR_r=L_cov\cov_pred;
         u=(dLR_H)'*dLR_r-fval_reg_pred_norm';
-        Var_pred=sigma_sq_lf*rho*rho+sigma_sq_bias+u'*inv_FTcovF*u-dLR_r'*dLR_r;
+        Var_pred=sigma_sq_LF*rho*rho+sigma_sq_bias+u'*inv_FTcovF*u-dLR_r'*dLR_r;
         Var_pred=diag(Var_pred);
 
         % normalize data

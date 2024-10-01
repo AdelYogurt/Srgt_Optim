@@ -25,7 +25,7 @@ prob_str=strrep(prob_str,'scon','');
 prob_str=strrep(prob_str,'munc','');
 prob_str=strrep(prob_str,'mcon','');
 prob_str=strrep(prob_str,'.m',' ');
-prob_str=split(prob_str,{' ','d'});
+prob_str=split(prob_str,{' ','_'});
 dat_list=reshape(prob_str(1:end-1),2,[])';
 
 vn_list=str2double(dat_list(:,1));
@@ -49,7 +49,7 @@ else
     con_fcn=@(x)conFcn(x,A,b,Aeq,beq,nonlcon_fcn);
     objcon_fcn=@(x)objconFcn(x,obj_fcn,con_fcn);
 
-    varargout={objcon_fcn,vari_num,low_bou,up_bou};
+    varargout={objcon_fcn,vari_num,low_bou,up_bou,x_best,obj_best};
 end
 end
 

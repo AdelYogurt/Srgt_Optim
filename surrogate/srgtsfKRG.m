@@ -78,8 +78,8 @@ if isempty(cov_fcn)
     dr_sq=dr.^2;
     % r=sqrt(sum(dr_sq,3));
 
-    % cov_fcn=@(X,X_pred,hyp)covCuSpin(X,X_pred,hyp,dr);
-    cov_fcn=@(X,X_pred,hyp)covGauss(X,X_pred,hyp,dr_sq);
+    % cov_fcn=@(X,X_pred,hyp)covCuSpin(X,X_pred,hyp);
+    cov_fcn=@(X,X_pred,hyp)covGauss(X,X_pred,hyp);
     % cov_fcn=@(X,X_pred)covCubic(X,X_pred,r);
 end
 if nargin(cov_fcn) == 2,option.optimize_hyp=false;end
@@ -114,6 +114,8 @@ end
 [logdetR,R]=calKRG(X,Y,reg_fcn,cov_fcn,hyp);
 sigma_sq=abs(sigma_sq)*stdD_Y^2; % renormalize data
 invHiRH=(dURH'*dLRH)\eye(size(H_norm,2));
+dr=[];
+dr_sq=[];
 
 % initialization predict function
 pred_fcn=@(X_pred)predictKRG(X,X_pred,reg_fcn,cov_fcn,hyp);
@@ -124,7 +126,7 @@ srgt.Y=Y;
 % srgt.reg_fcn=reg_fcn;
 % srgt.cov_fcn=cov_fcn;
 srgt.hyp=hyp;
-srgt.cov=R;
+% srgt.cov=R;
 srgt.beta=beta;
 srgt.gamma=gamma;
 srgt.sigma_sq=sigma_sq;
@@ -308,7 +310,7 @@ srgt.predict=pred_fcn;
 
 %% covariance function
 
-    function [cov,dcov_dhyp]=covCuSpin(~,X_pred,hyp,dr)
+    function [cov,dcov_dhyp]=covCuSpin(~,X_pred,hyp)
         % cubic spline covariance
         %
         theta=exp(hyp);
@@ -348,7 +350,7 @@ srgt.predict=pred_fcn;
         end
     end
 
-    function [cov,dcov_dhyp]=covGauss(X,X_pred,hyp,dr_sq)
+    function [cov,dcov_dhyp]=covGauss(X,X_pred,hyp)
         % gaussian covariance
         %
         scale=size(X_norm,2)^2;
@@ -380,7 +382,7 @@ srgt.predict=pred_fcn;
         end
     end
 
-    function cov=covCubic(X,X_pred,r)
+    function cov=covCubic(X,X_pred)
         % cubic covariance
         %
         if isempty(X_pred) % self covariance

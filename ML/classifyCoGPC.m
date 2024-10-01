@@ -1,11 +1,11 @@
-function model_CoGPC=classifyCoGPC(XHF,YHF,XLF,YLF,model_option)
+function model_CoGPC=classifyCoGPC(X_HF,Y_HF,X_LF,Y_LF,model_option)
 % generate multi fidelity gaussian process classifier model
 % assembly of gpml-3.6 with EP infer method
 % only support binary classification, 0 and 1
 %
 % input:
-% XHF(xhf_num x vari_num matrix), YHF(xhf_num x 1 matrix),...
-% XLF(xlf_num x vari_num matrix), YLF(xlf_num x 1 matrix),...
+% X_HF(x_HF_num x vari_num matrix), Y_HF(x_HF_num x 1 matrix),...
+% X_LF(x_LF_num x vari_num matrix), Y_LF(x_LF_num x 1 matrix),...
 % model_option(optional, include: optimize_hyp, simplify_hyp,...
 % hyp, optimize_option)
 %
@@ -36,17 +36,17 @@ if ~isfield(model_option,'optimize_option')
 end
 
 % normalize data
-X=[XHF;XLF];
-Y=[YHF;YLF];
+X=[X_HF;X_LF];
+Y=[Y_HF;Y_LF];
 [x_num,vari_num]=size(X);
-xhf_num=size(XHF,1);
-xlf_num=size(XLF,1);
+x_HF_num=size(X_HF,1);
+x_LF_num=size(X_LF,1);
 aver_X=mean(X);
 stdD_X=std(X);stdD_X(stdD_X == 0)=1;
-XHF_nomlz=(XHF-aver_X)./stdD_X;
-XLF_nomlz=(XLF-aver_X)./stdD_X;
-X_nomlz=[XHF_nomlz;XLF_nomlz];
-Y(Y==0)=-1;YHF(YHF==0)=-1;YLF(YLF==0)=-1;
+X_HF_nomlz=(X_HF-aver_X)./stdD_X;
+X_LF_nomlz=(X_LF-aver_X)./stdD_X;
+X_nomlz=[X_HF_nomlz;X_LF_nomlz];
+Y(Y==0)=-1;Y_HF(Y_HF==0)=-1;Y_LF(Y_LF==0)=-1;
 
 % regression function define
 % notice reg_fcn process no normalization data
@@ -60,8 +60,8 @@ for variable_index=1:vari_num
     X_dis_sq(:,:,variable_index)=...
         (X_nomlz(:,variable_index)-X_nomlz(:,variable_index)').^2;
 end
-XHF_dis_sq=X_dis_sq(1:xhf_num,1:xhf_num,:);
-XLF_dis_sq=X_dis_sq(xhf_num+1:end,xhf_num+1:end,:);
+X_HF_dis_sq=X_dis_sq(1:x_HF_num,1:x_HF_num,:);
+X_LF_dis_sq=X_dis_sq(x_HF_num+1:end,x_HF_num+1:end,:);
 
 % calculate reg
 fval_reg=reg_fcn(X);
@@ -72,7 +72,7 @@ simplify_hyp=model_option.('simplify_hyp');
 
 % if optimize hyperparameter
 if model_option.optimize_hyp
-    obj_fcn_hyp=@(hyp) probNLLCoGPC(X_dis_sq,Y,x_num,xhf_num,vari_num,hyp,fval_reg);
+    obj_fcn_hyp=@(hyp) probNLLCoGPC(X_dis_sq,Y,x_num,x_HF_num,vari_num,hyp,fval_reg);
 
     if simplify_hyp
         hyp=[sum(hyp(1:vari_num)),...
@@ -94,15 +94,15 @@ if model_option.optimize_hyp
     if simplify_hyp, hyp=[hyp(1)*ones(1,vari_num),hyp(2:3),hyp(4)*ones(1,vari_num),hyp(5)];end
 end
 
-covariance=calCovCoGPC(X_dis_sq,x_num,xhf_num,vari_num,...
+covariance=calCovCoGPC(X_dis_sq,x_num,x_HF_num,vari_num,...
     exp(hyp(1:vari_num)),exp(hyp(vari_num+1)),exp(hyp(vari_num+2)),exp(hyp(vari_num+2+(1:vari_num))),exp(hyp(2*(vari_num+1)+1)));
 [~,alpha,sW,L]=calInfGPC(covariance,Y,x_num,fval_reg);
-pred_fcn=@(X_pred) predictCoGPC(X_pred,X_nomlz,aver_X,stdD_X,x_num,xhf_num,vari_num,...
+pred_fcn=@(X_pred) predictCoGPC(X_pred,X_nomlz,aver_X,stdD_X,x_num,x_HF_num,vari_num,...
     exp(hyp(1:vari_num)),exp(hyp(vari_num+1)),exp(hyp(vari_num+2)),exp(hyp(vari_num+2+(1:vari_num))),exp(hyp(2*(vari_num+1)+1)),alpha,sW,L,reg_fcn);
 
 % output model
-X={XHF,XLF};
-Y={YHF,YLF};
+X={X_HF,X_LF};
+Y={Y_HF,Y_LF};
 
 model_CoGPC.X=X;
 model_CoGPC.Y=Y;
@@ -118,8 +118,8 @@ model_CoGPC.L=L;
 
 model_CoGPC.predict=pred_fcn;
 
-    function [fval,gradient]=probNLLCoGPC(X_dis_sq,Y,x_num,xhf_num,vari_num,hyp,fval_reg)
-        % hyperparameter is [len_bias,eta_bias,rho,len_lf,eta_lf]
+    function [fval,gradient]=probNLLCoGPC(X_dis_sq,Y,x_num,x_HF_num,vari_num,hyp,fval_reg)
+        % hyperparameter is [len_bias,eta_bias,rho,len_LF,eta_LF]
         % X_dis_sq will be divide by vari_num
         %
         hyp=min(hyp,up_bou_hyp);hyp=max(hyp,low_bou_hyp);
@@ -127,19 +127,19 @@ model_CoGPC.predict=pred_fcn;
             len_bias=exp(hyp(1))*ones(1,vari_num);
             eta_bias=exp(hyp(2));
             rho=exp(hyp(3));
-            len_lf=exp(hyp(4))*ones(1,vari_num);
-            eta_lf=exp(hyp(5));
+            len_LF=exp(hyp(4))*ones(1,vari_num);
+            eta_LF=exp(hyp(5));
         else
             len_bias=exp(hyp(1:vari_num));
             eta_bias=exp(hyp(vari_num+1));
             rho=exp(hyp(vari_num+2));
-            len_lf=exp(hyp(vari_num+2+(1:vari_num)));
-            eta_lf=exp(hyp(2*(vari_num+1)+1));
+            len_LF=exp(hyp(vari_num+2+(1:vari_num)));
+            eta_LF=exp(hyp(2*(vari_num+1)+1));
         end
 
-        [cov,cov_bias,cov_lf,eta_exp_dis_lf]=calCovCoGPC...
-            (X_dis_sq,x_num,xhf_num,vari_num,...
-            len_bias,eta_bias,rho,len_lf,eta_lf);
+        [cov,cov_bias,cov_LF,eta_exp_dis_LF]=calCovCoGPC...
+            (X_dis_sq,x_num,x_HF_num,vari_num,...
+            len_bias,eta_bias,rho,len_LF,eta_LF);
         [fval,alpha,sW,L]=calInfGPC(cov,Y,x_num,fval_reg);
 
         if nargout > 1
@@ -149,8 +149,8 @@ model_CoGPC.predict=pred_fcn;
             % len bias
             for len_idx=1:vari_num
                 dcov_dhyp=zeros(x_num);
-                dcov_dhyp(1:xhf_num,1:xhf_num)=-cov_bias(1:xhf_num,1:xhf_num).*...
-                    X_dis_sq(1:xhf_num,1:xhf_num,len_idx)*len_bias(len_idx)/vari_num;
+                dcov_dhyp(1:x_HF_num,1:x_HF_num)=-cov_bias(1:x_HF_num,1:x_HF_num).*...
+                    X_dis_sq(1:x_HF_num,1:x_HF_num,len_idx)*len_bias(len_idx)/vari_num;
                 gradient(len_idx)=-sum(sum(F.*dcov_dhyp))/2;
             end
 
@@ -160,22 +160,22 @@ model_CoGPC.predict=pred_fcn;
 
             % rho
             dcov_dhyp=zeros(x_num);
-            dcov_dhyp(1:xhf_num,1:xhf_num)=...
-                2*rho*rho*eta_exp_dis_lf(1:xhf_num,1:xhf_num);
-            dcov_dhyp(1:xhf_num,(xhf_num+1):end)=...
-                rho*eta_exp_dis_lf(1:xhf_num,(xhf_num+1):end);
-            dcov_dhyp((xhf_num+1):end,1:xhf_num)=...
-                dcov_dhyp(1:xhf_num,(xhf_num+1):end)';
+            dcov_dhyp(1:x_HF_num,1:x_HF_num)=...
+                2*rho*rho*eta_exp_dis_LF(1:x_HF_num,1:x_HF_num);
+            dcov_dhyp(1:x_HF_num,(x_HF_num+1):end)=...
+                rho*eta_exp_dis_LF(1:x_HF_num,(x_HF_num+1):end);
+            dcov_dhyp((x_HF_num+1):end,1:x_HF_num)=...
+                dcov_dhyp(1:x_HF_num,(x_HF_num+1):end)';
             gradient(vari_num+2)=-sum(sum(F.*dcov_dhyp))/2;
 
             % len L
             for len_idx=1:vari_num
-                dcov_dhyp=-cov_lf.*X_dis_sq(:,:,len_idx)*len_lf(len_idx)/vari_num;
+                dcov_dhyp=-cov_LF.*X_dis_sq(:,:,len_idx)*len_LF(len_idx)/vari_num;
                 gradient((vari_num+2)+len_idx)=-sum(sum(F.*dcov_dhyp))/2;
             end
 
             % eta L
-            dcov_dhyp=cov_lf;
+            dcov_dhyp=cov_LF;
             gradient(2*(vari_num+1)+1)=-sum(sum(F.*dcov_dhyp))/2;
 
             if simplify_hyp, gradient=[sum(gradient(1:vari_num)),...
@@ -185,15 +185,15 @@ model_CoGPC.predict=pred_fcn;
     end
 
     function [Y_pred,Prob_pred,Miu_pred,Var_pred]=predictCoGPC...
-            (X_pred,X_nomlz,aver_X,stdD_X,x_num,xhf_num,vari_num,...
-            len_bias,eta_bias,rho,len_lf,eta_lf,alpha,sW,L,reg_fcn)
+            (X_pred,X_nomlz,aver_X,stdD_X,x_num,x_HF_num,vari_num,...
+            len_bias,eta_bias,rho,len_LF,eta_LF,alpha,sW,L,reg_fcn)
         % CoGPC predict function
         %
         [x_pred_num,~]=size(X_pred);
         X_pred_nomlz=(X_pred-aver_X)./stdD_X;
         Y_targ_pred=ones(x_pred_num,1); % predict target class
 
-        cov_self=eta_bias+rho*rho*eta_lf;
+        cov_self=eta_bias+rho*rho*eta_LF;
 
         % distance sq of X_predict
         X_pred_dis_sq=zeros(x_num,x_pred_num,vari_num);
@@ -203,25 +203,25 @@ model_CoGPC.predict=pred_fcn;
         end
 
         % bias
-        exp_dis_bias=zeros(xhf_num,x_pred_num);
+        exp_dis_bias=zeros(x_HF_num,x_pred_num);
         for vari_index=1:vari_num
             exp_dis_bias=exp_dis_bias+...
-                X_pred_dis_sq(1:xhf_num,:,vari_index)*len_bias(vari_index);
+                X_pred_dis_sq(1:x_HF_num,:,vari_index)*len_bias(vari_index);
         end
         exp_dis_bias=exp(-exp_dis_bias/vari_num);
 
         % LF
-        exp_dis_lf=zeros(x_num,x_pred_num);
+        exp_dis_LF=zeros(x_num,x_pred_num);
         for vari_index=1:vari_num
-            exp_dis_lf=exp_dis_lf+...
-                X_pred_dis_sq(:,:,vari_index)*len_lf(vari_index);
+            exp_dis_LF=exp_dis_LF+...
+                X_pred_dis_sq(:,:,vari_index)*len_LF(vari_index);
         end
-        exp_dis_lf=exp(-exp_dis_lf/vari_num);
+        exp_dis_LF=exp(-exp_dis_LF/vari_num);
 
         % predict covariance
         cov_pred=zeros(x_num,x_pred_num);
-        cov_pred(1:xhf_num,:)=eta_bias*exp_dis_bias+rho*rho*eta_lf*exp_dis_lf(1:xhf_num,:);
-        cov_pred(xhf_num+1:end,:)=rho*eta_lf*exp_dis_lf(xhf_num+1:end,:);
+        cov_pred(1:x_HF_num,:)=eta_bias*exp_dis_bias+rho*rho*eta_LF*exp_dis_LF(1:x_HF_num,:);
+        cov_pred(x_HF_num+1:end,:)=rho*eta_LF*exp_dis_LF(x_HF_num+1:end,:);
 
         % predict liklihoood
         fval_reg_pred=reg_fcn(X_pred_nomlz);
@@ -236,9 +236,9 @@ model_CoGPC.predict=pred_fcn;
         Y_pred(Prob_pred < 0.5)=0;
     end
 
-    function [cov,cov_bias,cov_lf,eta_exp_dis_lf]=calCovCoGPC...
-            (X_dis_sq,x_num,xhf_num,vari_num,...
-            len_bias,eta_bias,rho,len_lf,eta_lf)
+    function [cov,cov_bias,cov_LF,eta_exp_dis_LF]=calCovCoGPC...
+            (X_dis_sq,x_num,x_HF_num,vari_num,...
+            len_bias,eta_bias,rho,len_LF,eta_LF)
         % obtain covariance of x
         % cov: lenD,etaD,lenL,etaL,rho
         % len equal to 1/len_origin.^2
@@ -249,31 +249,31 @@ model_CoGPC.predict=pred_fcn;
         % exp of x__x with H
         exp_dis_bias=zeros(x_num);
         for len_index=1:vari_num
-            exp_dis_bias(1:xhf_num,1:xhf_num)=exp_dis_bias(1:xhf_num,1:xhf_num)+...
-                X_dis_sq(1:xhf_num,1:xhf_num,len_index)*len_bias(len_index);
+            exp_dis_bias(1:x_HF_num,1:x_HF_num)=exp_dis_bias(1:x_HF_num,1:x_HF_num)+...
+                X_dis_sq(1:x_HF_num,1:x_HF_num,len_index)*len_bias(len_index);
         end
-        exp_dis_bias(1:xhf_num,1:xhf_num)=exp(-exp_dis_bias(1:xhf_num,1:xhf_num)/vari_num);
+        exp_dis_bias(1:x_HF_num,1:x_HF_num)=exp(-exp_dis_bias(1:x_HF_num,1:x_HF_num)/vari_num);
         cov_bias=eta_bias*exp_dis_bias;
 
         % exp of x__x with L
-        exp_dis_lf=zeros(x_num);
+        exp_dis_LF=zeros(x_num);
         for len_index=1:vari_num
-            exp_dis_lf=exp_dis_lf+...
-                X_dis_sq(1:end,1:end,len_index)*len_lf(len_index);
+            exp_dis_LF=exp_dis_LF+...
+                X_dis_sq(1:end,1:end,len_index)*len_LF(len_index);
         end
-        exp_dis_lf=exp(-exp_dis_lf/vari_num);
-        eta_exp_dis_lf=eta_lf*exp_dis_lf;
+        exp_dis_LF=exp(-exp_dis_LF/vari_num);
+        eta_exp_dis_LF=eta_LF*exp_dis_LF;
 
         % times rho: HH to rho2,HL to rho,LL to 1
-        cov_lf=eta_exp_dis_lf;
-        cov_lf(1:xhf_num,1:xhf_num)=...
-            (rho*rho)*eta_exp_dis_lf(1:xhf_num,1:xhf_num);
-        cov_lf(1:xhf_num,(xhf_num+1):end)=...
-            rho*eta_exp_dis_lf(1:xhf_num,(xhf_num+1):end);
-        cov_lf((xhf_num+1):end,1:xhf_num)=...
-            cov_lf(1:xhf_num,(xhf_num+1):end)';
+        cov_LF=eta_exp_dis_LF;
+        cov_LF(1:x_HF_num,1:x_HF_num)=...
+            (rho*rho)*eta_exp_dis_LF(1:x_HF_num,1:x_HF_num);
+        cov_LF(1:x_HF_num,(x_HF_num+1):end)=...
+            rho*eta_exp_dis_LF(1:x_HF_num,(x_HF_num+1):end);
+        cov_LF((x_HF_num+1):end,1:x_HF_num)=...
+            cov_LF(1:x_HF_num,(x_HF_num+1):end)';
 
-        cov=cov_bias+cov_lf;
+        cov=cov_bias+cov_LF;
     end
 
     function [nlZ,alpha,sW,L]=calInfGPC(cov,Y,x_num,fval_reg)

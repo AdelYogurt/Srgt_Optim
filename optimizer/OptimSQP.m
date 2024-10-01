@@ -45,7 +45,7 @@ text(result_x_best(:,1),result_x_best(:,2),num2str(linspace(1,size(result_x_best
 
 function [x_best,fval_best,NFE,output]=optimSQP...
     (obj_fcn,x_init,Aineq,Bineq,Aeq,Beq,low_bou,up_bou,con_fcn,....
-    NFE_max,iter_max,obj_torl,con_torl)
+    NFE_max,iter_max,obj_tol,con_tol)
 % optimal funtion Sequential Quadratic Programming version 0
 % unimportant function had been include in main function
 % lineSearch method use wolfe Guidelines to decrease NFE
@@ -53,10 +53,10 @@ function [x_best,fval_best,NFE,output]=optimSQP...
 %
 % Copyright 2022 10 Adel
 %
-if nargin < 11 || isempty(con_torl)
-    con_torl=1e-3;
-    if nargin < 10 || isempty(obj_torl)
-        obj_torl=1e-3;
+if nargin < 11 || isempty(con_tol)
+    con_tol=1e-3;
+    if nargin < 10 || isempty(obj_tol)
+        obj_tol=1e-3;
         if nargin < 9
             iter_max=[];
             if nargin < 8
@@ -123,12 +123,12 @@ result_fval_best=zeros(iter_max,1);
 
 x=x_init;
 [fval,gradient,NFE_fg]=getFvalGradient...
-    (obj_fcn,x,[],obj_torl,...
+    (obj_fcn,x,[],obj_tol,...
     GRADIENT_FLAG);NFE=NFE+NFE_fg;
 
 gradient_initial=gradient;
 
-if norm(gradient,Inf)<=obj_torl
+if norm(gradient,Inf)<=obj_tol
     done=1;
     x_best=x;
     fval_best=fval;
@@ -146,7 +146,7 @@ H=eye(size(x_init,1));
 while ~done
     % Quadratic Programming to obtain line search direction
     [direction,lamda,lamdaeq]=programQuadratic(x,gradient,H,...
-        Aineq,Bineq,Aeq,Beq,low_bou,up_bou,con_fcn,con_torl);
+        Aineq,Bineq,Aeq,Beq,low_bou,up_bou,con_fcn,con_tol);
     
     lamada=1;
     %     if iteration==1
@@ -160,7 +160,7 @@ while ~done
         GRADIENT_FLAG,GRADIENT_NONLCON_FLAG);
     NFE=NFE+NFC_line;
     
-    if judgeQuit(obj_torl,x,x_new,gradient_initial,...
+    if judgeQuit(obj_tol,x,x_new,gradient_initial,...
             gradient_new,iteration,iter_max)
         done=1;
         x_best=x;
@@ -241,7 +241,7 @@ output.iteration=iteration;
 end
 function [direction,lamda_lin,lamdaeq_lin,lamda,lamdaeq]=programQuadratic(x,gradient,H,...
     A,B,Aeq,Beq,low_bou,up_bou,nonlcon_function,...
-    con,coneq,gradient_con,gradient_coneq,nonlcon_torlance)
+    con,coneq,gradient_con,gradient_coneq,nonlcon_tolance)
 % solve quadratic programming problem to obtian direction
 %
 variable_number=size(H,1);
@@ -260,7 +260,7 @@ if ~isempty(A)
     end
     con_lin=A*x-B;
     for con_lin_index=1:size(con_lin,1)
-       if con_lin(con_lin_index) <= nonlcon_torlance
+       if con_lin(con_lin_index) <= nonlcon_tolance
            active_con_lin_index=[active_con_lin_index;con_lin_index];
            inequal_lin_number=inequal_lin_number+1;
        end
@@ -287,7 +287,7 @@ B_colume=[];
 if ~isempty(con)
     active_con_index=[]; % active not linear constraint equation index
     for con_index=1:size(con,1)
-       if con(con_index) <= nonlcon_torlance
+       if con(con_index) <= nonlcon_tolance
            active_con_index=[active_con_index;con_index];
            inequal_number=inequal_number+1;
        end

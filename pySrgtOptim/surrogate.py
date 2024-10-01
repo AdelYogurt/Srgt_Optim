@@ -328,61 +328,61 @@ class srgtsfRBFMF():
     Copyright 2023.2 Adel
     '''
 
-    def __init__(self, XHF, YHF, basis_fcn_hf=lambda r: r**3, XLF=None, YLF=None, basis_fcn_lf=lambda r: r**3):
-        self.XHF = np.array(XHF)
-        self.basis_fcn_hf = basis_fcn_hf
-        self.xhf_num, self.vari_num = self.XHF.shape
-        self.YHF = np.array(YHF).reshape(self.xhf_num, 1)
+    def __init__(self, X_HF, Y_HF, basis_fcn_HF=lambda r: r**3, X_LF=None, Y_LF=None, basis_fcn_LF=lambda r: r**3):
+        self.X_HF = np.array(X_HF)
+        self.basis_fcn_HF = basis_fcn_HF
+        self.x_HF_num, self.vari_num = self.X_HF.shape
+        self.Y_HF = np.array(Y_HF).reshape(self.x_HF_num, 1)
 
-        self.XLF = np.array(XLF)
-        self.basis_fcn_lf = basis_fcn_lf
-        self.YLF = np.array(YLF).reshape(self.XLF.shape[0], 1)
+        self.X_LF = np.array(X_LF)
+        self.basis_fcn_LF = basis_fcn_LF
+        self.Y_LF = np.array(Y_LF).reshape(self.X_LF.shape[0], 1)
 
-        self.aver_X = np.mean(XHF, axis=0).reshape((1, self.vari_num))
-        self.stdD_X = np.std(XHF, ddof=1, axis=0).reshape((1, self.vari_num))
+        self.aver_X = np.mean(X_HF, axis=0).reshape((1, self.vari_num))
+        self.stdD_X = np.std(X_HF, ddof=1, axis=0).reshape((1, self.vari_num))
         self.stdD_X[self.stdD_X == 0] = 1
 
-        self.aver_Y = np.mean(YHF, axis=0).reshape((1, 1))
-        self.stdD_Y = np.std(YHF, ddof=1, axis=0).reshape((1, 1))
+        self.aver_Y = np.mean(Y_HF, axis=0).reshape((1, 1))
+        self.stdD_Y = np.std(Y_HF, ddof=1, axis=0).reshape((1, 1))
         self.stdD_Y[self.stdD_Y == 0] = 1
 
     def train(self):
         # train LF
-        LF_model = srgtsfRBF(self.XLF, self.YLF, self.basis_fcn_lf)
+        LF_model = srgtsfRBF(self.X_LF, self.Y_LF, self.basis_fcn_LF)
         LF_model.train()
         self.LF_model = LF_model
 
-        xhf_num = self.xhf_num
+        x_HF_num = self.x_HF_num
         vari_num = self.vari_num
 
         # normalize data
-        self.X_nomlz = (self.XHF - self.aver_X) / self.stdD_X
-        self.Y_nomlz = (self.YHF - self.aver_Y) / self.stdD_Y
-        YHF_pred = LF_model.predict(self.XHF)
-        YHF_pred_nomlz = (YHF_pred - self.aver_Y) / self.stdD_Y
+        self.X_nomlz = (self.X_HF - self.aver_X) / self.stdD_X
+        self.Y_nomlz = (self.Y_HF - self.aver_Y) / self.stdD_Y
+        Y_HF_pred = LF_model.predict(self.X_HF)
+        Y_HF_pred_nomlz = (Y_HF_pred - self.aver_Y) / self.stdD_Y
 
         # initialization distance of all X
-        X_dis = np.zeros((xhf_num, xhf_num))
+        X_dis = np.zeros((x_HF_num, x_HF_num))
         for vari_idx in range(vari_num):
-            X_dis = X_dis + (self.X_nomlz[:, vari_idx].reshape(xhf_num, 1) -
-                             np.transpose(self.X_nomlz[:, vari_idx]).reshape(1, xhf_num)) ** 2
+            X_dis = X_dis + (self.X_nomlz[:, vari_idx].reshape(x_HF_num, 1) -
+                             np.transpose(self.X_nomlz[:, vari_idx]).reshape(1, x_HF_num)) ** 2
 
         X_dis = np.sqrt(X_dis)
 
-        self.rdibas_matrix = self.basis_fcn_hf(X_dis)
+        self.rdibas_matrix = self.basis_fcn_HF(X_dis)
         # add low fildelity value
         self.H = np.concatenate(
-            (self.rdibas_matrix*YHF_pred_nomlz, self.rdibas_matrix), axis=1)
+            (self.rdibas_matrix*Y_HF_pred_nomlz, self.rdibas_matrix), axis=1)
         self.H_hessian = np.dot(self.H, np.transpose(self.H))
         # stabilize matrix
-        self.H_hessian = self.H_hessian + np.eye(xhf_num) * 1e-09
+        self.H_hessian = self.H_hessian + np.eye(x_HF_num) * 1e-09
         # get inv matrix
-        self.inv_H_hessian = np.linalg.solve(self.H_hessian, np.eye(xhf_num))
+        self.inv_H_hessian = np.linalg.solve(self.H_hessian, np.eye(x_HF_num))
         # solve omega
         self.omega = np.dot(np.transpose(self.H), np.dot(
             self.inv_H_hessian, self.Y_nomlz))
-        self.alpha = self.omega[:xhf_num]
-        self.beta = self.omega[xhf_num:]
+        self.alpha = self.omega[:x_HF_num]
+        self.beta = self.omega[x_HF_num:]
 
     def predict(self, X_pred):
         X_pred = np.array(X_pred).reshape((-1, self.vari_num))
@@ -391,23 +391,23 @@ class srgtsfRBFMF():
         # normalize data
         X_pred_nomlz = (X_pred - self.aver_X) / self.stdD_X
         # calculate distance
-        X_dis_pred = np.zeros((x_pred_num, self.xhf_num))
+        X_dis_pred = np.zeros((x_pred_num, self.x_HF_num))
         for vari_idx in range(self.vari_num):
             X_dis_pred = X_dis_pred + \
                 (X_pred_nomlz[:, vari_idx].reshape(x_pred_num, 1) -
-                 np.transpose(self.X_nomlz[:, vari_idx]).reshape(1, self.xhf_num)) ** 2
+                 np.transpose(self.X_nomlz[:, vari_idx]).reshape(1, self.x_HF_num)) ** 2
 
         X_dis_pred = np.sqrt(X_dis_pred)
 
         # predict low fildelity value
-        Y_pred_lf = self.LF_model.predict(X_pred)
+        Y_pred_LF = self.LF_model.predict(X_pred)
         # nomalizae
-        Y_pred_lf_nomlz = (Y_pred_lf - self.aver_Y) / self.stdD_Y
+        Y_pred_LF_nomlz = (Y_pred_LF - self.aver_Y) / self.stdD_Y
 
         # combine two matrix
-        rdibas_matrix_pred = self.basis_fcn_hf(X_dis_pred)
+        rdibas_matrix_pred = self.basis_fcn_HF(X_dis_pred)
         H_pred = np.concatenate(
-            (rdibas_matrix_pred*Y_pred_lf_nomlz, rdibas_matrix_pred), axis=1)
+            (rdibas_matrix_pred*Y_pred_LF_nomlz, rdibas_matrix_pred), axis=1)
         # predict data
         Y_pred_nomlz = np.dot(H_pred, self.omega)
         # normalize data
@@ -416,7 +416,7 @@ class srgtsfRBFMF():
         return Y_pred
 
 
-def surrogateVisualize(mdl, low_bou, up_bou):
+def displaySrgt(mdl, low_bou, up_bou):
     '''
     visualize surrogate model
     '''
@@ -446,7 +446,7 @@ if __name__ == '__main__':
 
     # data = io.loadmat('Forrester.mat')
 
-    # srgt = srgtsfRBFMF(data['XHF'], data['YHF'],XLF=data['XLF'],YLF=data['YLF'])
+    # srgt = srgtsfRBFMF(data['X_HF'], data['Y_HF'],X_LF=data['X_LF'],Y_LF=data['Y_LF'])
     # srgt.train()
 
     # draw_X=np.linspace(0,1,20).reshape(20,1)
@@ -467,4 +467,4 @@ if __name__ == '__main__':
 
     srgt.train()
 
-    surrogateVisualize(srgt, low_bou, up_bou)
+    displaySrgt(srgt, low_bou, up_bou)

@@ -1,13 +1,13 @@
-function srgt=srgtdfMmRBF(XLF,YLF,XHF,YHF,option)
+function srgt=srgtdfMmRBF(X_LF,Y_LF,X_HF,Y_HF,option)
 % generate Modified Multi-Fildelity Surrogate model(MMFS)
 % using adaptive scaling factor compare CoRBF
 % input data will be normalize by average and standard deviation of data
 %
 % input:
-% XLF (matrix): low fidelity trained X, x_num x vari_num
-% YLF (vector): low fidelity trained Y, x_num x 1
-% XHF (matrix): high fidelity trained X, x_num x vari_num
-% YHF (vector): high fidelity trained Y, x_num x 1
+% X_LF (matrix): low fidelity trained X, x_num x vari_num
+% Y_LF (vector): low fidelity trained Y, x_num x 1
+% X_HF (matrix): high fidelity trained X, x_num x vari_num
+% Y_HF (vector): high fidelity trained Y, x_num x 1
 % option (struct): optional input, construct option
 %
 % output:
@@ -23,59 +23,59 @@ function srgt=srgtdfMmRBF(XLF,YLF,XHF,YHF,option)
 if nargin < 5,option=struct();end
 
 % MMFS option
-if ~isfield(option,'basis_fcn_lf'), option.('basis_fcn_lf')=[];end
-if ~isfield(option,'basis_fcn_hf'), option.('basis_fcn_hf')=[];end
+if ~isfield(option,'basis_fcn_LF'), option.('basis_fcn_LF')=[];end
+if ~isfield(option,'basis_fcn_HF'), option.('basis_fcn_HF')=[];end
 
 % first step
 % construct LF RBF model
-basis_fcn_lf=option.basis_fcn_lf;
-LF_model=srgtsfRBF(XLF,YLF,struct('basis_fcn',basis_fcn_lf));
-pred_fcn_lf=@(x) LF_model.predict(x);
+basis_fcn_LF=option.basis_fcn_LF;
+LF_model=srgtsfRBF(X_LF,Y_LF,struct('basis_fcn',basis_fcn_LF));
+pred_fcn_LF=@(x) LF_model.predict(x);
 
 % second step
 % construct MMFS model
 
 % normalize data
-[xhf_num,vari_num]=size(XHF);
-aver_X=mean(XHF);
-stdD_X=std(XHF);stdD_X(stdD_X == 0)=1;
-aver_Y=mean(YHF);
-stdD_Y=std(YHF);stdD_Y(stdD_Y == 0)=1;
+[x_HF_num,vari_num]=size(X_HF);
+aver_X=mean(X_HF);
+stdD_X=std(X_HF);stdD_X(stdD_X == 0)=1;
+aver_Y=mean(Y_HF);
+stdD_Y=std(Y_HF);stdD_Y(stdD_Y == 0)=1;
 
-XHF_norm=(XHF-aver_X)./stdD_X;
-YHF_norm=(YHF-aver_Y)./stdD_Y;
+X_HF_norm=(X_HF-aver_X)./stdD_X;
+Y_HF_norm=(Y_HF-aver_Y)./stdD_Y;
 
-% predict LF value at XHF point
-YHF_pred=pred_fcn_lf(XHF);
+% predict LF value at X_HF point
+Y_HF_pred=pred_fcn_LF(X_HF);
 
 % nomalizae
-YHF_pred_norm=(YHF_pred-aver_Y)./stdD_Y;
+Y_HF_pred_norm=(Y_HF_pred-aver_Y)./stdD_Y;
 
-basis_fcn_hf=option.basis_fcn_hf;
-if isempty(basis_fcn_hf)
-    basis_fcn_hf=@(r) r.^3;
+basis_fcn_HF=option.basis_fcn_HF;
+if isempty(basis_fcn_HF)
+    basis_fcn_HF=@(r) r.^3;
 end
 
-% initialization distance of XHF_norm
-rHF=zeros(xhf_num,xhf_num);
+% initialization distance of X_HF_norm
+rHF=zeros(x_HF_num,x_HF_num);
 for vari_idx=1:vari_num
-    rHF=rHF+(XHF_norm(:,vari_idx)-XHF_norm(:,vari_idx)').^2;
+    rHF=rHF+(X_HF_norm(:,vari_idx)-X_HF_norm(:,vari_idx)').^2;
 end
 rHF=sqrt(rHF);
 
 [omega,gram,gram_Mm]=calMmRBF...
-    (rHF,YHF_norm,basis_fcn_hf,xhf_num,YHF_pred_norm);
-alpha=omega(1:xhf_num);
-beta=omega(xhf_num+1:end);
+    (rHF,Y_HF_norm,basis_fcn_HF,x_HF_num,Y_HF_pred_norm);
+alpha=omega(1:x_HF_num);
+beta=omega(x_HF_num+1:end);
 
 % initialization predict function
 pred_fcn=@(X_predict) predictMmRBF...
-    (X_predict,XHF_norm,aver_X,stdD_X,aver_Y,stdD_Y,...
-    xhf_num,vari_num,omega,basis_fcn_hf,pred_fcn_lf);
+    (X_predict,X_HF_norm,aver_X,stdD_X,aver_Y,stdD_Y,...
+    x_HF_num,vari_num,omega,basis_fcn_HF,pred_fcn_LF);
 
 srgt=option;
-srgt.X={XLF,XHF};
-srgt.Y={YLF,YHF};
+srgt.X={X_LF,X_HF};
+srgt.Y={Y_LF,Y_HF};
 srgt.LF=LF_model;
 srgt.gram=gram;
 srgt.gram_Mm=gram_Mm;
@@ -84,7 +84,7 @@ srgt.beta=beta;
 srgt.predict=pred_fcn;
 
     function [omega,RBF_matrix,MmRBF_matrix]=calMmRBF...
-            (X_dis,Y,basis_fcn,x_num,YHF_pred_norm)
+            (X_dis,Y,basis_fcn,x_num,Y_HF_pred_norm)
         % interp polynomial responed surface core function
         % calculation beta
         %
@@ -93,7 +93,7 @@ srgt.predict=pred_fcn;
         RBF_matrix=basis_fcn(X_dis);
 
         % add low fildelity value
-        MmRBF_matrix=[RBF_matrix.*YHF_pred_norm,RBF_matrix];
+        MmRBF_matrix=[RBF_matrix.*Y_HF_pred_norm,RBF_matrix];
         MmRBF_matrix_hess=(MmRBF_matrix*MmRBF_matrix');
 
         % stabilize matrix
@@ -106,7 +106,7 @@ srgt.predict=pred_fcn;
 
     function [Y_pred]=predictMmRBF...
             (X_pred,X_norm,aver_X,stdD_X,aver_Y,stdD_Y,...
-            x_num,vari_num,omega,basis_fcn,pred_fcn_lf)
+            x_num,vari_num,omega,basis_fcn,pred_fcn_LF)
         % radial basis function interpolation predict function
         %
         [x_pred_num,~]=size(X_pred);
@@ -123,14 +123,14 @@ srgt.predict=pred_fcn;
         X_dis_pred=sqrt(X_dis_pred);
 
         % predict low fildelity value
-        Y_pred_lf=pred_fcn_lf(X_pred);
+        Y_pred_LF=pred_fcn_LF(X_pred);
 
         % nomalizae
-        Y_pred_lf_norm=(Y_pred_lf-aver_Y)./stdD_Y;
+        Y_pred_LF_norm=(Y_pred_LF-aver_Y)./stdD_Y;
 
         % combine two matrix
         RBF_matrix_pred=basis_fcn(X_dis_pred);
-        H=[RBF_matrix_pred.*Y_pred_lf_norm,RBF_matrix_pred];
+        H=[RBF_matrix_pred.*Y_pred_LF_norm,RBF_matrix_pred];
 
         % predict variance
         Y_pred_norm=H*omega;

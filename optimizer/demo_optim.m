@@ -1,6 +1,16 @@
 clc;
 clear;
-close all hidden;
+close all;
+
+%% add path
+
+addpath ../benchmark/
+addpath ../common/
+addpath ../LHD/
+addpath ../ML/
+addpath ../surrogate/
+
+%% define problem
 
 % % unconstraint problem GF
 % objcon_fcn=@(x) objconFcnGP(x);
@@ -10,15 +20,18 @@ close all hidden;
 % objcon_fcn=@(x) objconFcnG06(x);
 % vari_num=2;low_bou=[13,0];up_bou=[100,100];
 
-% NFE_max=100;iter_max=150;obj_torl=1e-6;con_torl=0;
+%% optimize problem
 
-% optimizer=OptimFSRBF(NFE_max,iter_max,obj_torl,con_torl);
-% optimizer=OptimKRGCDE(NFE_max,iter_max,obj_torl,con_torl);
-% optimizer=OptimSKO(NFE_max,iter_max,obj_torl,con_torl);
-% optimizer=OptimPAKMCA(NFE_max,iter_max,obj_torl,con_torl);
-% optimizer=OptimRBFCDE(NFE_max,iter_max,obj_torl,con_torl);
-% optimizer=OptimSACORS(NFE_max,iter_max,obj_torl,con_torl);
-% optimizer=OptimTRARSM(NFE_max,iter_max,obj_torl,con_torl);
+% NFE_max=100;iter_max=150;obj_tol=1e-6;con_tol=0;
+
+% optimizer=OptimDCSRBF(NFE_max,iter_max,obj_tol,con_tol);
+% optimizer=OptimFSRBF(NFE_max,iter_max,obj_tol,con_tol);
+% optimizer=OptimKRGCDE(NFE_max,iter_max,obj_tol,con_tol);
+% optimizer=OptimSKO(NFE_max,iter_max,obj_tol,con_tol);
+% optimizer=OptimPAKMCA(NFE_max,iter_max,obj_tol,con_tol);
+% optimizer=OptimRBFCDE(NFE_max,iter_max,obj_tol,con_tol);
+% optimizer=OptimSACORS(NFE_max,iter_max,obj_tol,con_tol);
+% optimizer=OptimTRARSM(NFE_max,iter_max,obj_tol,con_tol);
 
 % optimizer.FLAG_CONV_JUDGE=true;
 % optimizer.FLAG_DRAW_FIGURE=true;
@@ -32,7 +45,7 @@ close all hidden;
 % line(1:length(datalib.Obj),datalib.Obj,'Marker','o','Color','g')
 % line(1:length(datalib.Vio),datalib.Vio,'Marker','o','Color','r')
 
-% scatter(datalib.X(:,1),datalib.X(:,2));
+%% function
 
 function [obj,con,coneq]=objconFcnGP(x)
 % x_best=[0,-1];obj_best=3;

@@ -2,9 +2,10 @@ classdef OptimTRARSM < handle
     % TR-ARSM optimization algorithm
     % Trust-Region-Based Adaptive Response Surface Method optimization algorithm
     %
-    % reference: [1] LONG T, LI X, SHI R, et al., Gradient-Free
-    % Trust-Region-Based Adaptive Response Surface Method for Expensive
-    % Aircraft Optimization[J]. AIAA Journal, 2018, 56(2): 862-73.
+    % reference:
+    % [1] LONG T, LI X, SHI R, et al., Gradient-Free Trust-Region-Based
+    % Adaptive Response Surface Method for Expensive Aircraft
+    % Optimization[J]. AIAA Journal, 2018, 56(2): 862-73.
     %
     % Copyright 2023 Adel
     %
@@ -18,8 +19,8 @@ classdef OptimTRARSM < handle
     properties
         NFE_max;
         iter_max;
-        obj_torl;
-        con_torl;
+        obj_tol;
+        con_tol;
 
         datalib; % X, Obj, Con, Coneq, Vio
         dataoptim; % NFE, Add_idx, Iter
@@ -48,7 +49,7 @@ classdef OptimTRARSM < handle
         datalib_filestr=''; % datalib save mat name
         dataoptim_filestr=''; % optimize save mat name
 
-        add_torl=1000*eps; % surrogate add point protect range
+        add_tol=1000*eps; % surrogate add point protect range
         X_init=[];
 
         % hyper parameter
@@ -69,13 +70,13 @@ classdef OptimTRARSM < handle
 
     % main function
     methods
-        function self=OptimTRARSM(NFE_max,iter_max,obj_torl,con_torl)
+        function self=OptimTRARSM(NFE_max,iter_max,obj_tol,con_tol)
             % initialize optimization
             %
             if nargin < 4
-                con_torl=[];
+                con_tol=[];
                 if nargin < 3
-                    obj_torl=[];
+                    obj_tol=[];
                     if nargin < 2
                         iter_max=[];
                         if nargin < 1
@@ -85,17 +86,17 @@ classdef OptimTRARSM < handle
                 end
             end
 
-            if isempty(con_torl)
-                con_torl=1e-3;
+            if isempty(con_tol)
+                con_tol=1e-3;
             end
-            if isempty(obj_torl)
-                obj_torl=1e-6;
+            if isempty(obj_tol)
+                obj_tol=1e-6;
             end
 
             self.NFE_max=NFE_max;
             self.iter_max=iter_max;
-            self.obj_torl=obj_torl;
-            self.con_torl=con_torl;
+            self.obj_tol=obj_tol;
+            self.con_tol=con_tol;
         end
 
         function [x_best,obj_best,NFE,output,con_best,coneq_best,vio_best]=optimize(self,varargin)
@@ -118,16 +119,16 @@ classdef OptimTRARSM < handle
                     prob_method=methods(problem);
                     if ~contains(prob_method,'objcon_fcn'), error('OptimTRARSM.optimize: input problem lack objcon_fcn'); end
                     objcon_fcn=@(x) problem.objcon_fcn(x);
-                    prob_pro=properties(problem);
-                    if ~contains(prob_pro,'vari_num'), error('OptimTRARSM.optimize: input problem lack vari_num'); end
-                    if ~contains(prob_pro,'low_bou'), error('OptimTRARSM.optimize: input problem lack low_bou'); end
-                    if ~contains(prob_pro,'up_bou'), error('OptimTRARSM.optimize: input problem lack up_bou'); end
+                    prob_prop=properties(problem);
+                    if ~contains(prob_prop,'vari_num'), error('OptimTRARSM.optimize: input problem lack vari_num'); end
+                    if ~contains(prob_prop,'low_bou'), error('OptimTRARSM.optimize: input problem lack low_bou'); end
+                    if ~contains(prob_prop,'up_bou'), error('OptimTRARSM.optimize: input problem lack up_bou'); end
                     if ~contains(prob_method,'con_fcn_cheap')
                         con_fcn_cheap=[];
                     else
                         con_fcn_cheap=@(x) problem.con_fcn_cheap(x);
                     end
-                    clear('prob_method','prob_pro');
+                    clear('prob_method','prob_prop');
                 end
                 vari_num=problem.vari_num;
                 low_bou=problem.low_bou;
@@ -235,12 +236,12 @@ classdef OptimTRARSM < handle
                 problem.lb=low_bou_TR;
                 problem.ub=up_bou_TR;
                 problem.nonlcon=con_fcn_cheap;
-                problem.options=optimoptions('fmincon','Display','none','Algorithm','sqp','ConstraintTolerance',self.con_torl);
+                problem.options=optimoptions('fmincon','Display','none','Algorithm','sqp','ConstraintTolerance',self.con_tol);
 
                 gs=GlobalSearch('Display','off','NumTrialPoints',10*vari_num+200);
                 [x_infill,obj_infill_pred]=run(gs,problem);
 
-%                 fmincon_option=optimoptions('fmincon','Display','none','Algorithm','sqp','ConstraintTolerance',self.con_torl);
+%                 fmincon_option=optimoptions('fmincon','Display','none','Algorithm','sqp','ConstraintTolerance',self.con_tol);
                 if self.FLAG_CON
 %                     [x_infill,~,~,~]=fmincon...
 %                         (penalty_fcn,x_init,[],[],[],[],low_bou_TR,up_bou_TR,con_fcn_cheap,fmincon_option);
@@ -267,7 +268,7 @@ classdef OptimTRARSM < handle
 
                 % information
                 if self.FLAG_DRAW_FIGURE && vari_num < 3
-                    surrogateVisualize(self.Srgt_obj{1},low_bou_TR,up_bou_TR);
+                    displaySrgt([],self.Srgt_obj{1},low_bou_TR,up_bou_TR);
                     line(x_infill(1),x_infill(2),obj_infill,'Marker','o','color','r');
                 end
 
@@ -282,7 +283,7 @@ classdef OptimTRARSM < handle
 
                 % convergence judgment
                 if self.FLAG_CONV_JUDGE && self.dataoptim.iter > 2 
-                    if ( abs((obj_infill-obj_infill_old)/obj_infill_old) < self.obj_torl && ...
+                    if ( abs((obj_infill-obj_infill_old)/obj_infill_old) < self.obj_tol && ...
                             ((~isempty(vio_infill) && vio_infill == 0) || isempty(vio_infill)) )
                         self.dataoptim.done=true;
                     end
@@ -391,7 +392,7 @@ classdef OptimTRARSM < handle
 
             % obtain datalib
             if isempty(self.datalib)
-                self.datalib=self.datalibGet(vari_num,low_bou,up_bou,self.con_torl,self.datalib_filestr);
+                self.datalib=self.datalibGet(vari_num,low_bou,up_bou,self.con_tol,self.datalib_filestr);
             end
 
             if size(self.datalib.X,1) < sample_num
@@ -434,8 +435,8 @@ classdef OptimTRARSM < handle
                 else
                     dist=vecnorm(datalib.X-x_add,2,2);
                 end
-                if any(dist < self.add_torl)
-                    overlap_idx=find(dist < self.add_torl,1);
+                if any(dist < self.add_tol)
+                    overlap_idx=find(dist < self.add_tol,1);
                     repeat_idx(x_idx)=overlap_idx;
                     datalib_idx(x_idx)=overlap_idx;
                 else
@@ -565,13 +566,13 @@ classdef OptimTRARSM < handle
 
     % data library function
     methods(Static)
-        function datalib=datalibGet(vari_num,low_bou,up_bou,con_torl,datalib_filestr)
+        function datalib=datalibGet(vari_num,low_bou,up_bou,con_tol,datalib_filestr)
             % generate data library object
             %
             if nargin < 5
                 datalib_filestr=[];
-                if nargin < 4 || isempty(con_torl)
-                    con_torl=0;
+                if nargin < 4 || isempty(con_tol)
+                    con_tol=0;
                 end
             end
 
@@ -579,7 +580,7 @@ classdef OptimTRARSM < handle
             datalib.vari_num=vari_num;
             datalib.low_bou=low_bou;
             datalib.up_bou=up_bou;
-            datalib.con_torl=con_torl;
+            datalib.con_tol=con_tol;
             datalib.filestr=datalib_filestr;
 
             datalib.X=[];
@@ -596,8 +597,8 @@ classdef OptimTRARSM < handle
             [obj,con,coneq]=objcon_fcn(x);vio=[]; % eval value
 
             % calculate vio
-            if ~isempty(con),vio=[vio,max(max(con-datalib.con_torl,0),[],2)];end
-            if ~isempty(coneq),vio=[vio,max(max(abs(coneq)-datalib.con_torl,0),[],2)];end
+            if ~isempty(con),vio=[vio,max(max(con-datalib.con_tol,0),[],2)];end
+            if ~isempty(coneq),vio=[vio,max(max(abs(coneq)-datalib.con_tol,0),[],2)];end
             vio=max(vio,[],2);
 
             datalib.X=[datalib.X;x];

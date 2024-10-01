@@ -36,8 +36,8 @@ classdef OptimSKO < handle
 
         NFE_max;
         iter_max;
-        obj_torl;
-        con_torl;
+        obj_tol;
+        con_tol;
         NFE;
         Add_idx;
 
@@ -48,13 +48,13 @@ classdef OptimSKO < handle
 
     % main function
     methods
-        function self=OptimSKO(NFE_max,iter_max,obj_torl,con_torl)
+        function self=OptimSKO(NFE_max,iter_max,obj_tol,con_tol)
             % initialize self
             %
             if nargin < 4
-                con_torl=[];
+                con_tol=[];
                 if nargin < 3
-                    obj_torl=[];
+                    obj_tol=[];
                     if nargin < 2
                         iter_max=[];
                         if nargin < 1
@@ -64,13 +64,13 @@ classdef OptimSKO < handle
                 end
             end
 
-            if isempty(con_torl),con_torl=1e-3;end
-            if isempty(obj_torl),obj_torl=1e-6;end
+            if isempty(con_tol),con_tol=1e-3;end
+            if isempty(obj_tol),obj_tol=1e-6;end
 
             self.NFE_max=NFE_max;
             self.iter_max=iter_max;
-            self.con_torl=con_torl;
-            self.obj_torl=obj_torl;
+            self.con_tol=con_tol;
+            self.obj_tol=obj_tol;
 
             % surrogate information
             option_optim.KRG_option=struct();
@@ -83,7 +83,7 @@ classdef OptimSKO < handle
             option_optim.datalib_filestr=''; % datalib save mat name
             option_optim.dataoptim_filestr=''; % optimize save mat name
             option_optim.nomlz_value=100; % max obj when normalize obj,con,coneq
-            option_optim.add_torl=1000*eps; % surrogate add point protect range
+            option_optim.add_tol=1000*eps; % surrogate add point protect range
             option_optim.X_init=[]; % initial sample point
             option_optim.criteria='EI'; % infill criteria
             option_optim.constraint='auto'; % constraint process method
@@ -115,10 +115,10 @@ classdef OptimSKO < handle
                     prob_method=methods(problem);
                     if ~contains(prob_method,'objcon_fcn'), error('OptimSKO.optimize: input problem lack objcon_fcn'); end
                     objcon_fcn=@(x) problem.objcon_fcn(x);
-                    prob_pro=properties(problem);
-                    if ~contains(prob_pro,'vari_num'), error('OptimSKO.optimize: input problem lack vari_num'); end
-                    if ~contains(prob_pro,'low_bou'), error('OptimSKO.optimize: input problem lack low_bou'); end
-                    if ~contains(prob_pro,'up_bou'), error('OptimSKO.optimize: input problem lack up_bou'); end
+                    prob_prop=properties(problem);
+                    if ~contains(prob_prop,'vari_num'), error('OptimSKO.optimize: input problem lack vari_num'); end
+                    if ~contains(prob_prop,'low_bou'), error('OptimSKO.optimize: input problem lack low_bou'); end
+                    if ~contains(prob_prop,'up_bou'), error('OptimSKO.optimize: input problem lack up_bou'); end
                 end
                 vari_num=problem.vari_num;
                 low_bou=problem.low_bou;
@@ -170,7 +170,7 @@ classdef OptimSKO < handle
 
             % obtain datalib
             if isempty(self.datalib)
-                self.datalib=self.datalibGet(vari_num,low_bou,up_bou,self.con_torl,datalib_filestr);
+                self.datalib=self.datalibGet(vari_num,low_bou,up_bou,self.con_tol,datalib_filestr);
             end
 
             if size(self.datalib.X,1) < sample_num_init
@@ -253,7 +253,7 @@ classdef OptimSKO < handle
 
                 % information
                 if self.FLAG_DRAW_FIGURE && vari_num < 3
-                    surrogateVisualize(self.Srgt_obj{1},low_bou,up_bou);
+                    displaySrgt([],self.Srgt_obj{1},low_bou,up_bou);
                     if vari_num == 1
                         line(x_infill(1),obj_infill,'Marker','o','color','r');
                     else
@@ -273,7 +273,7 @@ classdef OptimSKO < handle
                 % convergence judgment
                 if self.FLAG_CONV_JUDGE && iter > 2
                     obj_best_old=result_Obj(iter-2,:);
-                    if ( abs((obj_best-obj_best_old)/obj_best_old) < self.obj_torl && ...
+                    if ( abs((obj_best-obj_best_old)/obj_best_old) < self.obj_tol && ...
                             ((~isempty(vio_best) && vio_best == 0) || isempty(vio_best)) )
                         done=1;
                     end
@@ -293,7 +293,7 @@ classdef OptimSKO < handle
                 (self,datalib,objcon_fcn,X_add,cost,fidelity)
             % find best result to record
             %
-            add_torl=self.option_optim.add_torl;
+            add_tol=self.option_optim.add_tol;
             if nargin < 6, fidelity=[];if nargin < 5, cost=[];end,end
             if isempty(fidelity), fidelity=1;end
             if isempty(cost), cost=1;end
@@ -311,8 +311,8 @@ classdef OptimSKO < handle
                 else
                     dist=vecnorm(datalib.X-x_add,2,2);
                 end
-                if any(dist < add_torl)
-                    overlap_idx=find(dist < add_torl,1);
+                if any(dist < add_tol)
+                    overlap_idx=find(dist < add_tol,1);
                     repeat_idx(x_idx)=overlap_idx;
                     datalib_idx(x_idx)=overlap_idx;
                 else
@@ -399,7 +399,7 @@ classdef OptimSKO < handle
             [x_infill,~,exit_flag]=run(ms,problem,rs);
 
             if (exit_flag == -2 && strcmp(self.option_optim.constraint,'auto')) ...
-                    || norm(x_infill-x_init) < self.option_optim.add_torl
+                    || norm(x_infill-x_init) < self.option_optim.add_tol
                 problem.objective=infill_fcn;
                 problem.nonlcon=self.con_fcn_srgt;
                 rs=CustomStartPointSet([x_init;lhsdesign(19,vari_num).*(up_bou-low_bou)+low_bou]);
@@ -576,13 +576,13 @@ classdef OptimSKO < handle
 
     % data library function
     methods(Static)
-        function datalib=datalibGet(vari_num,low_bou,up_bou,con_torl,datalib_filestr)
+        function datalib=datalibGet(vari_num,low_bou,up_bou,con_tol,datalib_filestr)
             % generate data library object
             %
             if nargin < 5
                 datalib_filestr=[];
-                if nargin < 4 || isempty(con_torl)
-                    con_torl=0;
+                if nargin < 4 || isempty(con_tol)
+                    con_tol=0;
                 end
             end
 
@@ -590,7 +590,7 @@ classdef OptimSKO < handle
             datalib.vari_num=vari_num;
             datalib.low_bou=low_bou;
             datalib.up_bou=up_bou;
-            datalib.con_torl=con_torl;
+            datalib.con_tol=con_tol;
             datalib.filestr=datalib_filestr;
 
             datalib.X=[];
@@ -607,8 +607,8 @@ classdef OptimSKO < handle
             [obj,con,coneq]=objcon_fcn(x);vio=[]; % eval value
 
             % calculate vio
-            if ~isempty(con),vio=[vio,max(max(con-datalib.con_torl,0),[],2)];end
-            if ~isempty(coneq),vio=[vio,max(max(abs(coneq)-datalib.con_torl,0),[],2)];end
+            if ~isempty(con),vio=[vio,max(max(con-datalib.con_tol,0),[],2)];end
+            if ~isempty(coneq),vio=[vio,max(max(abs(coneq)-datalib.con_tol,0),[],2)];end
             vio=max(vio,[],2);
 
             datalib.X=[datalib.X;x];

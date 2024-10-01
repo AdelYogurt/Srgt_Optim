@@ -1,12 +1,13 @@
 classdef OptimFSRBF < handle
     % FSRBF and SRBF-SVM optimization algorithm
     %
-    % referance: [1] SHI R,LIU L,LONG T,et al. Sequential Radial Basis Function
-    % Using Support Vector Machine for Expensive Design Optimization [J]. AIAA
-    % Journal,2017,55(1): 214-27.
-    % [2] Shi R, Liu L, Long T, et al. Filter-Based Sequential Radial Basis
-    % Function Method for Spacecraft Multidisciplinary Design Optimization[J].
-    % AIAA Journal, 2018, 57(3): 1019-31.
+    % referance:
+    % [1] SHI R,LIU L,LONG T,et al. Sequential Radial Basis Function Using
+    % Support Vector Machine for Expensive Design Optimization [J]. AIAA
+    % Journal,2017,55(1): 214-27. [2] Shi R, Liu L, Long T, et al.
+    % Filter-Based Sequential Radial Basis Function Method for Spacecraft
+    % Multidisciplinary Design Optimization[J]. AIAA Journal, 2018, 57(3):
+    % 1019-31.
     %
     % Copyright 2022 Adel
     %
@@ -21,8 +22,8 @@ classdef OptimFSRBF < handle
     properties
         NFE_max;
         iter_max;
-        obj_torl;
-        con_torl;
+        obj_tol;
+        con_tol;
 
         datalib; % X, Obj, Con, Coneq, Vio
         dataoptim; % NFE, Add_idx, Iter
@@ -47,11 +48,11 @@ classdef OptimFSRBF < handle
         FLAG_DRAW_FIGURE=0; % whether draw data
         FLAG_INFORMATION=1; % whether print data
         FLAG_CONV_JUDGE=0; % whether judgment convergence
-        
+
         datalib_filestr=''; % datalib save mat name
         dataoptim_filestr=''; % optimize save mat name
 
-        add_torl=1000*eps; % surrogate add point protect range
+        add_tol=1000*eps; % surrogate add point protect range
         X_init=[];
 
         % hyper parameter
@@ -67,13 +68,13 @@ classdef OptimFSRBF < handle
 
     % main function
     methods
-        function self=OptimFSRBF(NFE_max,iter_max,obj_torl,con_torl)
+        function self=OptimFSRBF(NFE_max,iter_max,obj_tol,con_tol)
             % initialize optimization
             %
             if nargin < 4
-                con_torl=[];
+                con_tol=[];
                 if nargin < 3
-                    obj_torl=[];
+                    obj_tol=[];
                     if nargin < 2
                         iter_max=[];
                         if nargin < 1
@@ -83,17 +84,17 @@ classdef OptimFSRBF < handle
                 end
             end
 
-            if isempty(con_torl)
-                con_torl=1e-3;
+            if isempty(con_tol)
+                con_tol=1e-3;
             end
-            if isempty(obj_torl)
-                obj_torl=1e-6;
+            if isempty(obj_tol)
+                obj_tol=1e-6;
             end
 
             self.NFE_max=NFE_max;
             self.iter_max=iter_max;
-            self.obj_torl=obj_torl;
-            self.con_torl=con_torl;
+            self.obj_tol=obj_tol;
+            self.con_tol=con_tol;
         end
 
         function [x_best,obj_best,NFE,output,con_best,coneq_best,vio_best]=optimize(self,varargin)
@@ -116,11 +117,11 @@ classdef OptimFSRBF < handle
                     prob_method=methods(problem);
                     if ~contains(prob_method,'objcon_fcn'), error('OptimFSRBF.optimize: input problem lack objcon_fcn'); end
                     objcon_fcn=@(x) problem.objcon_fcn(x);
-                    prob_pro=properties(problem);
-                    if ~contains(prob_pro,'vari_num'), error('OptimFSRBF.optimize: input problem lack vari_num'); end
-                    if ~contains(prob_pro,'low_bou'), error('OptimFSRBF.optimize: input problem lack low_bou'); end
-                    if ~contains(prob_pro,'up_bou'), error('OptimFSRBF.optimize: input problem lack up_bou'); end
-                    clear('prob_method','prob_pro');
+                    prob_prop=properties(problem);
+                    if ~contains(prob_prop,'vari_num'), error('OptimFSRBF.optimize: input problem lack vari_num'); end
+                    if ~contains(prob_prop,'low_bou'), error('OptimFSRBF.optimize: input problem lack low_bou'); end
+                    if ~contains(prob_prop,'up_bou'), error('OptimFSRBF.optimize: input problem lack up_bou'); end
+                    clear('prob_method','prob_prop');
                 end
                 vari_num=problem.vari_num;
                 low_bou=problem.low_bou;
@@ -170,7 +171,7 @@ classdef OptimFSRBF < handle
             while ~self.dataoptim.done
                 % step 3, construct surrogate
                 [self.obj_fcn_srgt,self.con_fcn_srgt,...
-                    self.Srgt_obj,self.Srgt_con,self.Srgt_coneq]=self.getSrgtFcnRBF...
+                    self.Srgt_obj,self.Srgt_con,self.Srgt_coneq]=getSrgtFcnVar...
                     (X,Obj,Con,Coneq);
 
                 ga_option=optimoptions('ga','Display','none','ConstraintTolerance',0,'MaxGenerations',10,'HybridFcn','fmincon');
@@ -182,7 +183,7 @@ classdef OptimFSRBF < handle
                 if exit_flag == -2
                     % step 4
                     % optimal feasiblilty if do not exist feasible point
-                    vio_fcn_surr=@(x) self.vioFcnSurr(x,self.con_fcn_srgt,self.con_torl);
+                    vio_fcn_surr=@(x) vioFcnSurr(x,self.con_fcn_srgt,self.con_tol);
                     [x_infill,~,exit_flag,output_ga]=ga...
                         (vio_fcn_surr,vari_num,[],[],[],[],low_bou,up_bou,[],ga_option);
                 end
@@ -208,7 +209,7 @@ classdef OptimFSRBF < handle
 
                 % information
                 if self.FLAG_DRAW_FIGURE && vari_num < 3
-                    surrogateVisualize(self.Srgt_obj{1},low_bou,up_bou);
+                    displaySrgt([],self.Srgt_obj{1},low_bou,up_bou);
                     line(x_infill(1),x_infill(2),obj_infill,'Marker','o','color','r');
                 end
 
@@ -222,8 +223,8 @@ classdef OptimFSRBF < handle
                 end
 
                 % convergence judgment
-                if self.FLAG_CONV_JUDGE && self.dataoptim.iter > 2 
-                    if ( abs((obj_infill-obj_infill_old)/obj_infill_old) < self.obj_torl && ...
+                if self.FLAG_CONV_JUDGE && self.dataoptim.iter > 2
+                    if ( abs((obj_infill-obj_infill_old)/obj_infill_old) < self.obj_tol && ...
                             ((~isempty(vio_infill) && vio_infill == 0) || isempty(vio_infill)) )
                         self.dataoptim.done=true;
                     end
@@ -315,7 +316,7 @@ classdef OptimFSRBF < handle
 
             % obtain datalib
             if isempty(self.datalib)
-                self.datalib=self.datalibGet(vari_num,low_bou,up_bou,self.con_torl,self.datalib_filestr);
+                self.datalib=self.datalibGet(vari_num,low_bou,up_bou,self.con_tol,self.datalib_filestr);
             end
 
             if size(self.datalib.X,1) < self.sample_num_init
@@ -358,8 +359,8 @@ classdef OptimFSRBF < handle
                 else
                     dist=vecnorm(datalib.X-x_add,2,2);
                 end
-                if any(dist < self.add_torl)
-                    overlap_idx=find(dist < self.add_torl,1);
+                if any(dist < self.add_tol)
+                    overlap_idx=find(dist < self.add_tol,1);
                     repeat_idx(x_idx)=overlap_idx;
                     datalib_idx(x_idx)=overlap_idx;
                 else
@@ -381,7 +382,6 @@ classdef OptimFSRBF < handle
             if ~isempty(datalib.Vio),Vio=datalib.Vio(datalib_idx,:);
             else,Vio=[];end
         end
-    
     end
 
     % strategy function
@@ -393,7 +393,7 @@ classdef OptimFSRBF < handle
 
             if self.FLAG_CON
                 % base on filter to decide which x should be choose
-                pareto_idx_list=self.getParetoFront(Obj,Vio);
+                pareto_idx_list=getParetoFront(Obj,Vio);
 
                 Class=ones(size(X,1),1);
                 Class(pareto_idx_list)=0;
@@ -415,176 +415,15 @@ classdef OptimFSRBF < handle
         end
     end
 
-    % common function
-    methods(Static)
-        function [obj_fcn_srgt,con_fcn_srgt,Srgt_obj,Srgt_con,Srgt_coneq]=getSrgtFcnRBF...
-                (x_list,obj_list,con_list,coneq_list)
-            % generate surrogate function of objective and constraints
-            %
-            % output:
-            % obj_fcn_srgt(output is obj_pred),...
-            % con_fcn_srgt(output is con_pred, coneq_pred)
-            %
-
-            % generate obj surrogate
-            Srgt_obj=cell(size(obj_list,2),1);
-            for obj_idx=1:size(obj_list,2)
-                Srgt_obj{obj_idx}=srgtsfRBF(x_list,obj_list(:,obj_idx));
-            end
-
-            % generate con surrogate
-            if ~isempty(con_list)
-                Srgt_con=cell(size(con_list,2),1);
-                for con_idx=1:size(con_list,2)
-                    Srgt_con{con_idx}=srgtsfRBF(x_list,con_list(:,con_idx));
-                end
-            else
-                Srgt_con=[];
-            end
-
-            % generate coneq surrogate
-            if ~isempty(coneq_list)
-                Srgt_coneq=cell(size(coneq_list,2),1);
-                for coneq_idx=1:size(coneq_list,2)
-                    Srgt_coneq{coneq_idx}=srgtsfRBF(x_list,coneq_list(:,coneq_idx));
-                end
-            else
-                Srgt_coneq=[];
-            end
-
-            obj_fcn_srgt=@(X_pred) objFcnSurr(X_pred,Srgt_obj);
-            if isempty(Srgt_con) && isempty(Srgt_coneq)
-                con_fcn_srgt=[];
-            else
-                con_fcn_srgt=@(X_pred) conFcnSurr(X_pred,Srgt_con,Srgt_coneq);
-            end
-
-            function [Obj_pred]=objFcnSurr(X_pred,Srgt_obj)
-                % connect all predict obj
-                %
-                Obj_pred=zeros(size(X_pred,1),length(Srgt_obj));
-                for con_i=1:length(Srgt_obj)
-                    [Obj_pred(:,con_i)]=Srgt_obj{con_i}.predict(X_pred);
-                end
-
-                if any(isnan([Obj_pred]))
-                    disp('nan');
-                end
-            end
-
-            function [Con_pred,Coneq_pred]=conFcnSurr(X_pred,Srgt_con,Srgt_coneq)
-                % connect all predict con and coneq
-                %
-                if isempty(Srgt_con)
-                    Con_pred=[];
-                else
-                    Con_pred=zeros(size(X_pred,1),length(Srgt_con));
-                    for con_i=1:length(Srgt_con)
-                        [Con_pred(:,con_i)]=Srgt_con{con_i}.predict(X_pred);
-                    end
-                end
-                if isempty(Srgt_coneq)
-                    Coneq_pred=[];
-                else
-                    Coneq_pred=zeros(size(X_pred,1),length(Srgt_coneq));
-                    for coneq_i=1:length(Srgt_coneq)
-                        [Coneq_pred(:,coneq_i)]=Srgt_coneq{coneq_i}.predict(X_pred);
-                    end
-                end
-
-                if any(isnan([Con_pred,Coneq_pred]))
-                    disp('nan');
-                end
-            end
-        end
-
-        function vio=vioFcnSurr(x,con_fcn_srgt,con_torl)
-            % calculate violation by con_fcn_srgt(x)
-            %
-            [con,coneq]=con_fcn_srgt(x);vio=[];
-            % calculate vio
-            if ~isempty(con),vio=[vio,max(max(con-con_torl,0),[],2)];end
-            if ~isempty(coneq),vio=[vio,max(max(abs(coneq)-con_torl,0),[],2)];end
-            vio=max(vio,[],2);
-        end
-
-        function pareto_idx_list=getParetoFront(obj_list,vio_list)
-            % distinguish pareto front of data list
-            % dominate define as followed
-            % Solution i is feasible and solution j is not.
-            % Solutions i and j are both infeasible,...
-            % but solution i has a smaller overall constraint violation.
-            % Solutions i and j are feasible and solution i dominates solution j
-            %
-            x_number=size(obj_list,1);
-            pareto_idx_list=[]; % sort all idx of filter point list
-
-            % select no domain filter
-            for x_idx=1:x_number
-                obj=obj_list(x_idx,:);
-                vio=vio_list(x_idx,:);
-
-                pareto_idx=1;
-                add_filter_flag=true(1);
-                while pareto_idx <= length(pareto_idx_list)
-                    % compare x with exit pareto front point
-                    x_pareto_idx=pareto_idx_list(pareto_idx,:);
-
-                    % contain constraint of x_filter
-                    obj_pareto=obj_list(x_pareto_idx,:);
-                    ks_pareto=vio_list(x_pareto_idx,:);
-
-                    % compare x with x_pareto
-                    if ks_pareto <= 0
-                        if obj > obj_pareto || vio > 0
-                            add_filter_flag=false(1);
-                            break;
-                        end
-                    else
-                        if obj > obj_pareto && vio > ks_pareto
-                            add_filter_flag=false(1);
-                            break;
-                        end
-                    end
-
-                    % if better than exit pareto point,reject pareto point
-                    delete_filter_flag=false(1);
-                    if vio <= 0
-                        if obj_pareto > obj || ks_pareto > 0
-                            delete_filter_flag=true(1);
-                        end
-                    else
-                        if obj_pareto > obj && ks_pareto > vio
-                            delete_filter_flag=true(1);
-                        end
-                    end
-                    if delete_filter_flag
-                        pareto_idx_list(pareto_idx)=[];
-                        pareto_idx=pareto_idx-1;
-                    end
-
-                    pareto_idx=pareto_idx+1;
-                end
-
-                % add into pareto list if possible
-                if add_filter_flag
-                    pareto_idx_list=[pareto_idx_list;x_idx];
-                end
-            end
-
-        end
-
-    end
-
     % data library function
     methods(Static)
-        function datalib=datalibGet(vari_num,low_bou,up_bou,con_torl,datalib_filestr)
+        function datalib=datalibGet(vari_num,low_bou,up_bou,con_tol,datalib_filestr)
             % generate data library object
             %
             if nargin < 5
                 datalib_filestr=[];
-                if nargin < 4 || isempty(con_torl)
-                    con_torl=0;
+                if nargin < 4 || isempty(con_tol)
+                    con_tol=0;
                 end
             end
 
@@ -592,7 +431,7 @@ classdef OptimFSRBF < handle
             datalib.vari_num=vari_num;
             datalib.low_bou=low_bou;
             datalib.up_bou=up_bou;
-            datalib.con_torl=con_torl;
+            datalib.con_tol=con_tol;
             datalib.filestr=datalib_filestr;
 
             datalib.X=[];
@@ -609,8 +448,8 @@ classdef OptimFSRBF < handle
             [obj,con,coneq]=objcon_fcn(x);vio=[]; % eval value
 
             % calculate vio
-            if ~isempty(con),vio=[vio,max(max(con-datalib.con_torl,0),[],2)];end
-            if ~isempty(coneq),vio=[vio,max(max(abs(coneq)-datalib.con_torl,0),[],2)];end
+            if ~isempty(con),vio=[vio,max(max(con-datalib.con_tol,0),[],2)];end
+            if ~isempty(coneq),vio=[vio,max(max(abs(coneq)-datalib.con_tol,0),[],2)];end
             vio=max(vio,[],2);
 
             datalib.X=[datalib.X;x];
@@ -667,4 +506,178 @@ end
 
 %% surrogate function
 
-%% machine learning
+%% common function
+
+function [obj_fcn_srgt,con_fcn_srgt,Srgt_obj,Srgt_con,Srgt_coneq]=getSrgtFcnVar...
+    (x_list,obj_list,con_list,coneq_list)
+% generate surrogate function of objective and constraints
+%
+% output:
+% obj_fcn_srgt(output is obj_pred, obj_var),...
+% con_fcn_srgt(output is con_pred, coneq_pred, con_var, coneq_var)
+%
+
+% generate obj surrogate
+Srgt_obj=cell(size(obj_list,2),1);
+for obj_idx=1:size(obj_list,2)
+    Srgt_obj{obj_idx}=srgtsfRBF(x_list,obj_list(:,obj_idx));
+end
+
+% generate con surrogate
+if ~isempty(con_list)
+    Srgt_con=cell(size(con_list,2),1);
+    for con_idx=1:size(con_list,2)
+        Srgt_con{con_idx}=srgtsfRBF(x_list,con_list(:,con_idx));
+    end
+else
+    Srgt_con=[];
+end
+
+% generate coneq surrogate
+if ~isempty(coneq_list)
+    Srgt_coneq=cell(size(coneq_list,2),1);
+    for coneq_idx=1:size(coneq_list,2)
+        Srgt_coneq{coneq_idx}=srgtsfRBF(x_list,coneq_list(:,coneq_idx));
+    end
+else
+    Srgt_coneq=[];
+end
+
+obj_fcn_srgt=@(X_pred) objFcnSurr(X_pred,Srgt_obj);
+if isempty(Srgt_con) && isempty(Srgt_coneq)
+    con_fcn_srgt=[];
+else
+    con_fcn_srgt=@(X_pred) conFcnSurr(X_pred,Srgt_con,Srgt_coneq);
+end
+
+    function [Obj_pred,Obj_var]=objFcnSurr(X_pred,Srgt_obj)
+        % connect all predict obj
+        %
+        Obj_pred=zeros(size(X_pred,1),length(Srgt_obj));
+        if nargout < 2
+            for con_i=1:length(Srgt_obj)
+                [Obj_pred(:,con_i)]=Srgt_obj{con_i}.predict(X_pred);
+            end
+        else
+            Obj_var=zeros(size(X_pred,1),length(Srgt_obj));
+            for con_i=1:length(Srgt_obj)
+                [Obj_pred(:,con_i),Obj_var(:,con_i)]=Srgt_obj{con_i}.predict(X_pred);
+            end
+        end
+    end
+
+    function [Con_pred,Coneq_pred,Con_var,Coneq_var]=conFcnSurr(X_pred,Srgt_con,Srgt_coneq)
+        % connect all predict con and coneq
+        %
+        if isempty(Srgt_con)
+            Con_pred=[];
+            Con_var=[];
+        else
+            Con_pred=zeros(size(X_pred,1),length(Srgt_con));
+
+            if nargout < 4
+                for con_i=1:length(Srgt_con)
+                    [Con_pred(:,con_i)]=Srgt_con{con_i}.predict(X_pred);
+                end
+            else
+                Con_var=zeros(size(X_pred,1),length(Srgt_con));
+                for con_i=1:length(Srgt_con)
+                    [Con_pred(:,con_i),Con_var(:,con_i)]=Srgt_con{con_i}.predict(X_pred);
+                end
+            end
+        end
+        if isempty(Srgt_coneq)
+            Coneq_pred=[];
+            Coneq_var=[];
+        else
+            Coneq_pred=zeros(size(X_pred,1),length(Srgt_coneq));
+
+            if nargout < 5
+                for coneq_i=1:length(Srgt_coneq)
+                    [Coneq_pred(:,coneq_i)]=Srgt_coneq{coneq_i}.predict(X_pred);
+                end
+            else
+                Coneq_var=zeros(size(X_pred,1),length(Srgt_coneq));
+                for coneq_i=1:length(Srgt_coneq)
+                    [Coneq_pred(:,coneq_i),Coneq_var(:,coneq_i)]=Srgt_coneq{coneq_i}.predict(X_pred);
+                end
+            end
+        end
+    end
+end
+
+function vio=vioFcnSurr(x,con_fcn_srgt,con_tol)
+% calculate violation by con_fcn_srgt(x)
+%
+[con,coneq]=con_fcn_srgt(x);vio=[];
+% calculate vio
+if ~isempty(con),vio=[vio,max(max(con-con_tol,0),[],2)];end
+if ~isempty(coneq),vio=[vio,max(max(abs(coneq)-con_tol,0),[],2)];end
+vio=max(vio,[],2);
+end
+
+function pareto_idx_list=getParetoFront(obj_list,vio_list)
+% distinguish pareto front of data list
+% dominate define as followed
+% Solution i is feasible and solution j is not.
+% Solutions i and j are both infeasible,...
+% but solution i has a smaller overall constraint violation.
+% Solutions i and j are feasible and solution i dominates solution j
+%
+x_number=size(obj_list,1);
+pareto_idx_list=[]; % sort all idx of filter point list
+
+% select no domain filter
+for x_idx=1:x_number
+    obj=obj_list(x_idx,:);
+    vio=vio_list(x_idx,:);
+
+    pareto_idx=1;
+    add_filter_flag=true(1);
+    while pareto_idx <= length(pareto_idx_list)
+        % compare x with exit pareto front point
+        x_pareto_idx=pareto_idx_list(pareto_idx,:);
+
+        % contain constraint of x_filter
+        obj_pareto=obj_list(x_pareto_idx,:);
+        ks_pareto=vio_list(x_pareto_idx,:);
+
+        % compare x with x_pareto
+        if ks_pareto <= 0
+            if obj > obj_pareto || vio > 0
+                add_filter_flag=false(1);
+                break;
+            end
+        else
+            if obj > obj_pareto && vio > ks_pareto
+                add_filter_flag=false(1);
+                break;
+            end
+        end
+
+        % if better than exit pareto point,reject pareto point
+        delete_filter_flag=false(1);
+        if vio <= 0
+            if obj_pareto > obj || ks_pareto > 0
+                delete_filter_flag=true(1);
+            end
+        else
+            if obj_pareto > obj && ks_pareto > vio
+                delete_filter_flag=true(1);
+            end
+        end
+        if delete_filter_flag
+            pareto_idx_list(pareto_idx)=[];
+            pareto_idx=pareto_idx-1;
+        end
+
+        pareto_idx=pareto_idx+1;
+    end
+
+    % add into pareto list if possible
+    if add_filter_flag
+        pareto_idx_list=[pareto_idx_list;x_idx];
+    end
+end
+
+end

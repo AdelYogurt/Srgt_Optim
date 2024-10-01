@@ -15,10 +15,10 @@ classdef OptimSACOAMS < handle
         % basic parameter
         NFE_max;
         iter_max;
-        obj_torl;
-        con_torl;
-        datalib_hf;
-        datalib_lf;
+        obj_tol;
+        con_tol;
+        datalib_HF;
+        datalib_LF;
 
         FLAG_DRAW_FIGURE=0; % whether draw data
         FLAG_INFORMATION=1; % whether print data
@@ -30,8 +30,8 @@ classdef OptimSACOAMS < handle
         protect_range=1e-16; % surrogate add point protect range
         identiy_torl=1e-2; % if inf norm of point less than self.identiy_torl, point will be consider as same local best
 
-        str_data_file_hf='result_total_hf.txt'
-        str_data_file_lf='result_total_lf.txt'
+        str_data_file_HF='result_total_HF.txt'
+        str_data_file_LF='result_total_LF.txt'
     end
 
     properties
@@ -46,7 +46,7 @@ classdef OptimSACOAMS < handle
         Vio_potl=[];
 
         detect_local_flag=true(1);
-        add_lf_flag=true(1);
+        add_LF_flag=true(1);
 
         model_GPC=struct('hyp',struct('mean',0,'cov',[0,0]));
         model_MFGPC=struct('hyp',struct('mean',0,'cov',[0,0,0,0,0]));
@@ -62,64 +62,71 @@ classdef OptimSACOAMS < handle
     end
 
     methods % main
-        function self=OptimSACOAMS(NFE_max,iter_max,obj_torl,con_torl,datalib_hf,datalib_lf,dataoptim_filestr)
+        function self=OptimSACOAMS(NFE_max,iter_max,obj_tol,con_tol)
             % initialize optimization
             %
-            if nargin < 7
-                dataoptim_filestr='';
-                if nargin < 6
-                    datalib_lf=[];
-                    if nargin < 5
-                        datalib_hf=[];
-                        if nargin < 4 || isempty(con_torl)
-                            con_torl=1e-3;
-                            if nargin < 3 || isempty(obj_torl)
-                                obj_torl=1e-6;
-                                if nargin < 2
-                                    iter_max=[];
-                                    if nargin < 1
-                                        NFE_max=[];
-                                    end
-                                end
-                            end
+            if nargin < 4
+                con_tol=[];
+                if nargin < 3
+                    obj_tol=[];
+                    if nargin < 2
+                        iter_max=[];
+                        if nargin < 1
+                            NFE_max=[];
                         end
                     end
                 end
             end
 
-            if isempty(con_torl)
-                con_torl=1e-3;
+            if isempty(con_tol)
+                con_tol=1e-3;
             end
-            if isempty(obj_torl)
-                obj_torl=1e-6;
+            if isempty(obj_tol)
+                obj_tol=1e-6;
             end
 
             self.NFE_max=NFE_max;
             self.iter_max=iter_max;
-            self.obj_torl=obj_torl;
-            self.con_torl=con_torl;
-            self.datalib_hf=datalib_hf;
-            self.datalib_lf=datalib_lf;
-            self.dataoptim_filestr=dataoptim_filestr;
+            self.obj_tol=obj_tol;
+            self.con_tol=con_tol;
         end
 
         function [x_best,obj_best,NFE,output]=optimize(self,varargin)
             % main optimize function
             %
+
+            % step 1, initialize problem
             if length(varargin) == 1
+                % input is struct or object
                 problem=varargin{1};
-                objcon_fcn_list=problem.objcon_fcn_list;
-                Cost=problem.Cost;
-                Ratio=problem.Ratio;
+                if isstruct(problem)
+                    prob_field=fieldnames(problem);
+                    if ~contains(prob_field,'objcon_fcn_HF'), error('OptimSACOAMS.optimize: input problem lack objcon_fcn_HF'); end
+                    objcon_fcn_HF=problem.objcon_fcn_HF;
+                    if ~contains(prob_field,'objcon_fcn_LF'), error('OptimSACOAMS.optimize: input problem lack objcon_fcn_LF'); end
+                    objcon_fcn_LF=problem.objcon_fcn_LF;
+                    if ~contains(prob_field,'vari_num'), error('OptimSACORS.optimize: input problem lack vari_num'); end
+                    if ~contains(prob_field,'low_bou'), error('OptimSACORS.optimize: input problem lack low_bou'); end
+                    if ~contains(prob_field,'up_bou'), error('OptimSACORS.optimize: input problem lack up_bou'); end
+                else
+                    prob_method=methods(problem);
+                    if ~contains(prob_method,'objcon_fcn_HF'), error('OptimSACOAMS.optimize: input problem lack objcon_fcn_HF'); end
+                    objcon_fcn_HF=problem.objcon_fcn_HF;
+                    if ~contains(prob_method,'objcon_fcn_LF'), error('OptimSACOAMS.optimize: input problem lack objcon_fcn_LF'); end
+                    objcon_fcn_LF=problem.objcon_fcn_LF;
+                    prob_prop=properties(problem);
+                    if ~contains(prob_prop,'vari_num'), error('OptimSACORS.optimize: input problem lack vari_num'); end
+                    if ~contains(prob_prop,'low_bou'), error('OptimSACORS.optimize: input problem lack low_bou'); end
+                    if ~contains(prob_prop,'up_bou'), error('OptimSACORS.optimize: input problem lack up_bou'); end
+                end
                 vari_num=problem.vari_num;
                 low_bou=problem.low_bou;
                 up_bou=problem.up_bou;
-                con_fcn_cheap=problem.con_fcn_cheap;
             else
-                varargin=[varargin,repmat({[]},1,7-length(varargin))];
-                [objcon_fcn_list,Cost,Ratio,vari_num,low_bou,up_bou,con_fcn_cheap]=varargin{:};
+                % multi input
+                varargin=[varargin,repmat({[]},1,4-length(varargin))];
+                [objcon_fcn_list,vari_num,low_bou,up_bou]=varargin{:};
             end
-
             % NFE and iteration setting
             if isempty(self.NFE_max)
                 self.NFE_max=10+10*vari_num;
@@ -130,12 +137,12 @@ classdef OptimSACOAMS < handle
             end
 
             fidelity_num=length(objcon_fcn_list);
-            objcon_fcn_hf=objcon_fcn_list{1};
-            objcon_fcn_lf=objcon_fcn_list{2};
-            cost_hf=Cost(1);
-            cost_lf=Cost(2);
-            ratio_hf=Ratio(1);
-            ratio_lf=Ratio(2);
+            objcon_fcn_HF=objcon_fcn_list{1};
+            objcon_fcn_LF=objcon_fcn_list{2};
+            cost_HF=Cost(1);
+            cost_LF=Cost(2);
+            ratio_HF=Ratio(1);
+            ratio_LF=Ratio(2);
 
             % hyper parameter
             sample_num_init=4+2*vari_num;
@@ -151,46 +158,46 @@ classdef OptimSACOAMS < handle
 
             % step 1
             % generate initial data lib
-            sample_num_init_hf=ceil(sample_num_init*ratio_hf);
-            sample_num_init_lf=ceil(sample_num_init*ratio_lf);
+            sample_num_init_HF=ceil(sample_num_init*ratio_HF);
+            sample_num_init_LF=ceil(sample_num_init*ratio_LF);
 
-            if isempty(self.datalib_lf)
-                self.datalib_lf=struct('objcon_fcn',objcon_fcn_lf,'vari_num',vari_num,'low_bou',low_bou,'up_bou',up_bou,'con_torl',self.con_torl,...
+            if isempty(self.datalib_LF)
+                self.datalib_LF=struct('objcon_fcn',objcon_fcn_LF,'vari_num',vari_num,'low_bou',low_bou,'up_bou',up_bou,'con_tol',self.con_tol,...
                     'result_best_idx',[],'X',[],'Obj',[],'Con',[],'Coneq',[],'Vio',[],'Ks',[]);
             else
                 % load exist data
-                self.datalib_lf=struct('objcon_fcn',objcon_fcn_lf,'vari_num',vari_num,'low_bou',low_bou,'up_bou',up_bou,'con_torl',self.con_torl,...
-                    'result_best_idx',[],'X',self.datalib_lf.X,'Obj',self.datalib_lf.Obj,'Con',self.datalib_lf.Con,'Coneq',self.datalib_lf.Coneq,'Vio',self.datalib_lf.Vio,'Ks',self.datalib_lf.Ks);
+                self.datalib_LF=struct('objcon_fcn',objcon_fcn_LF,'vari_num',vari_num,'low_bou',low_bou,'up_bou',up_bou,'con_tol',self.con_tol,...
+                    'result_best_idx',[],'X',self.datalib_LF.X,'Obj',self.datalib_LF.Obj,'Con',self.datalib_LF.Con,'Coneq',self.datalib_LF.Coneq,'Vio',self.datalib_LF.Vio,'Ks',self.datalib_LF.Ks);
             end
-            if size(self.datalib_lf.X,1) < sample_num_init_lf
-                X_updata_lf=lhsdesign(sample_num_init_lf-size(self.datalib_lf.X,1),vari_num,'iterations',50,'criterion','maximin').*(up_bou-low_bou)+low_bou;
+            if size(self.datalib_LF.X,1) < sample_num_init_LF
+                X_updata_LF=lhsdesign(sample_num_init_LF-size(self.datalib_LF.X,1),vari_num,'iterations',50,'criterion','maximin').*(up_bou-low_bou)+low_bou;
 
                 % updata data lib by x_list
-                [self.datalib_lf,~,~,~,~,~,~,~,NFE_updata]=datalibAdd(self.datalib_lf,X_updata_lf,0,self.WRIRE_FILE_FLAG,self.str_data_file_lf);
-                NFE=NFE+NFE_updata*cost_lf;
+                [self.datalib_LF,~,~,~,~,~,~,~,NFE_updata]=datalibAdd(self.datalib_LF,X_updata_LF,0,self.WRIRE_FILE_FLAG,self.str_data_file_LF);
+                NFE=NFE+NFE_updata*cost_LF;
                 NFE_list(2)=NFE_list(2)+NFE_updata;
             end
 
-            if isempty(self.datalib_hf)
-                self.datalib_hf=struct('objcon_fcn',objcon_fcn_hf,'vari_num',vari_num,'low_bou',low_bou,'up_bou',up_bou,'con_torl',self.con_torl,...
+            if isempty(self.datalib_HF)
+                self.datalib_HF=struct('objcon_fcn',objcon_fcn_HF,'vari_num',vari_num,'low_bou',low_bou,'up_bou',up_bou,'con_tol',self.con_tol,...
                     'result_best_idx',[],'X',[],'Obj',[],'Con',[],'Coneq',[],'Vio',[],'Ks',[]);
             else
                 % load exist data
-                self.datalib_hf=struct('objcon_fcn',objcon_fcn_hf,'vari_num',vari_num,'low_bou',low_bou,'up_bou',up_bou,'con_torl',self.con_torl,...
-                    'result_best_idx',[],'X',self.datalib_hf.X,'Obj',self.datalib_hf.Obj,'Con',self.datalib_hf.Con,'Coneq',self.datalib_hf.Coneq,'Vio',self.datalib_hf.Vio,'Ks',self.datalib_hf.Ks);
+                self.datalib_HF=struct('objcon_fcn',objcon_fcn_HF,'vari_num',vari_num,'low_bou',low_bou,'up_bou',up_bou,'con_tol',self.con_tol,...
+                    'result_best_idx',[],'X',self.datalib_HF.X,'Obj',self.datalib_HF.Obj,'Con',self.datalib_HF.Con,'Coneq',self.datalib_HF.Coneq,'Vio',self.datalib_HF.Vio,'Ks',self.datalib_HF.Ks);
             end
 
-            if size(self.datalib_hf.X,1) < sample_num_init_hf
-                X_updata_hf=self.lhdNSLE(self.datalib_lf.X,sample_num_init_hf-size(self.datalib_hf.X,1),vari_num,low_bou,up_bou);
+            if size(self.datalib_HF.X,1) < sample_num_init_HF
+                X_updata_HF=self.lhdNSLE(self.datalib_LF.X,sample_num_init_HF-size(self.datalib_HF.X,1),vari_num,low_bou,up_bou);
 
                 % detech expensive constraints and initialize data lib
-                [self.datalib_hf,~,~,~,~,~,~,~,NFE_updata]=datalibAdd(self.datalib_hf,X_updata_hf,0,self.WRIRE_FILE_FLAG,self.str_data_file_hf);
-                NFE=NFE+NFE_updata*cost_hf;
+                [self.datalib_HF,~,~,~,~,~,~,~,NFE_updata]=datalibAdd(self.datalib_HF,X_updata_HF,0,self.WRIRE_FILE_FLAG,self.str_data_file_HF);
+                NFE=NFE+NFE_updata*cost_HF;
                 NFE_list(1)=NFE_list(1)+NFE_updata;
             end
 
             % detech expensive constraints
-            if ~isempty(self.datalib_hf.Vio)
+            if ~isempty(self.datalib_HF.Vio)
                 self.FLAG_CON=true(1);
             else
                 self.FLAG_CON=false(1);
@@ -198,11 +205,11 @@ classdef OptimSACOAMS < handle
 
             % find fesiable data in current data lib
             if self.FLAG_CON
-                Bool_feas_hf=self.datalib_hf.Vio == 0;
-                Bool_feas_lf=self.datalib_lf.Vio == 0;
+                Bool_feas_HF=self.datalib_HF.Vio == 0;
+                Bool_feas_LF=self.datalib_LF.Vio == 0;
             end
-            Bool_conv_hf=false(size(self.datalib_hf.X,1),1);
-            Bool_conv_lf=false(size(self.datalib_lf.X,1),1);
+            Bool_conv_HF=false(size(self.datalib_HF.X,1),1);
+            Bool_conv_LF=false(size(self.datalib_LF.X,1),1);
 
             fmincon_options=optimoptions('fmincon','Display','none','Algorithm','sqp','ConstraintTolerance',0,'FiniteDifferenceStepSize',1e-5);
 
@@ -214,34 +221,34 @@ classdef OptimSACOAMS < handle
             while ~done
                 % step 2
                 % nomalization all data by max obj and to create surrogate model
-                [XHF,Obj_hf,Con_hf,Coneq_hf,Vio_hf,Ks_hf]=datalibLoad(self.datalib_hf);
-                [XLF,Obj_lf,Con_lf,Coneq_lf,Vio_lf,Ks_lf]=datalibLoad(self.datalib_lf);
+                [X_HF,Obj_HF,Con_HF,Coneq_HF,Vio_HF,Ks_HF]=datalibLoad(self.datalib_HF);
+                [X_LF,Obj_LF,Con_LF,Coneq_LF,Vio_LF,Ks_LF]=datalibLoad(self.datalib_LF);
 
-                XMF={XHF,XLF};Obj_MF={Obj_hf,Obj_lf};
-                if ~isempty(Con_hf)
-                    Con_MF={Con_hf;Con_lf};
+                X_MF={X_HF,X_LF};Obj_MF={Obj_HF,Obj_LF};
+                if ~isempty(Con_HF)
+                    Con_MF={Con_HF;Con_LF};
                 else
                     Con_MF=[];
                 end
-                if ~isempty(Coneq_hf)
-                    Coneq_MF={Coneq_hf;Coneq_lf};
+                if ~isempty(Coneq_HF)
+                    Coneq_MF={Coneq_HF;Coneq_LF};
                 else
                     Coneq_MF=[];
                 end
-                if ~isempty(Vio_hf)
-                    Vio_MF={Vio_hf;Vio_lf};
+                if ~isempty(Vio_HF)
+                    Vio_MF={Vio_HF;Vio_LF};
                 else
                     Vio_MF=[];
                 end
-                if ~isempty(Ks_hf)
-                    Ks_MF={Ks_hf;Ks_lf};
+                if ~isempty(Ks_HF)
+                    Ks_MF={Ks_HF;Ks_LF};
                 else
                     Ks_MF=[];
                 end
 
                 [X_surr_MF,Obj_surr_MF,Con_surr_MF,Coneq_surr_MF,Vio_surr_MF,Ks_surr_MF,...
                     obj_max,con_max_list,coneq_max_list,~,~]=self.preSurrData...
-                    (fidelity_num,XMF,Obj_MF,Con_MF,Coneq_MF,Vio_MF,Ks_MF,self.nomlz_value);
+                    (fidelity_num,X_MF,Obj_MF,Con_MF,Coneq_MF,Vio_MF,Ks_MF,self.nomlz_value);
 
                 % get local infill point, construct surrogate model
                 [self.obj_fcn_srgt,self.con_fcn_srgt,output_model]=self.getSrgtFcnMF...
@@ -252,7 +259,7 @@ classdef OptimSACOAMS < handle
                 obj_surr_type=output_model.model_obj_type;
                 con_surr_type_list=output_model.model_con_type_list;
                 coneq_surr_type_list=output_model.model_coneq_type_list;
-                [self.ks_fcn_surr,self.ks_surr,~]=self.getBestModel(XMF,Ks_surr_MF);
+                [self.ks_fcn_surr,self.ks_surr,~]=self.getBestModel(X_MF,Ks_surr_MF);
 
                 % check if all model is SF
                 all_SF_flag=true(1);
@@ -279,7 +286,7 @@ classdef OptimSACOAMS < handle
                 end
 
                 if all_SF_flag
-                    self.add_lf_flag=false(1);
+                    self.add_LF_flag=false(1);
                 end
 
                 % step 3
@@ -294,58 +301,58 @@ classdef OptimSACOAMS < handle
                 obj_infill_pred=self.Obj_potl(1,:);
 
                 % updata infill point
-                [self.datalib_hf,x_infill,obj_infill,con_infill,coneq_infill,vio_infill,ks_infill,repeat_idx,NFE_updata]=...
-                    datalibAdd(self.datalib_hf,x_infill,self.protect_range,self.WRIRE_FILE_FLAG,self.str_data_file_hf);
-                NFE=NFE+NFE_updata*cost_hf;
+                [self.datalib_HF,x_infill,obj_infill,con_infill,coneq_infill,vio_infill,ks_infill,repeat_idx,NFE_updata]=...
+                    datalibAdd(self.datalib_HF,x_infill,self.protect_range,self.WRIRE_FILE_FLAG,self.str_data_file_HF);
+                NFE=NFE+NFE_updata*cost_HF;
                 NFE_list(1)=NFE_list(1)+NFE_updata;
 
                 if isempty(x_infill)
                     % process error
-                    x_infill=self.datalib_hf.X(repeat_idx,:);
-                    obj_infill=self.datalib_hf.Obj(repeat_idx,:);
-                    if ~isempty(Con_hf)
-                        con_infill=self.datalib_hf.Con(repeat_idx,:);
+                    x_infill=self.datalib_HF.X(repeat_idx,:);
+                    obj_infill=self.datalib_HF.Obj(repeat_idx,:);
+                    if ~isempty(Con_HF)
+                        con_infill=self.datalib_HF.Con(repeat_idx,:);
                     end
-                    if ~isempty(Coneq_hf)
-                        coneq_infill=self.datalib_hf.Coneq(repeat_idx,:);
+                    if ~isempty(Coneq_HF)
+                        coneq_infill=self.datalib_HF.Coneq(repeat_idx,:);
                     end
-                    if ~isempty(Vio_hf)
-                        vio_infill=self.datalib_hf.Vio(repeat_idx,:);
+                    if ~isempty(Vio_HF)
+                        vio_infill=self.datalib_HF.Vio(repeat_idx,:);
                     end
                 else
                     if ~isempty(vio_infill) && vio_infill > 0
-                        Bool_feas_hf=[Bool_feas_hf;false(1)];
+                        Bool_feas_HF=[Bool_feas_HF;false(1)];
                     else
-                        Bool_feas_hf=[Bool_feas_hf;true(1)];
+                        Bool_feas_HF=[Bool_feas_HF;true(1)];
                     end
-                    Bool_conv_hf=[Bool_conv_hf;false(1)];
+                    Bool_conv_HF=[Bool_conv_HF;false(1)];
                 end
                 self.Obj_potl(1,:)=obj_infill;
                 self.Vio_potl(1,:)=vio_infill;
 
                 if self.FLAG_DRAW_FIGURE && vari_num < 3
-                    surrogateVisualize(obj_surr,low_bou,up_bou);
+                    displaySrgt(obj_surr,low_bou,up_bou);
                     line(x_infill(1),x_infill(2),obj_infill./obj_max*nomlz_value,'Marker','o','color','r','LineStyle','none');
                 end
 
                 % find best result to record
-                [XHF,Obj_hf,~,~,Vio_hf,~]=datalibLoad(self.datalib_hf);
-                X_unconv_hf=XHF(~Bool_conv_hf,:);
-                Obj_unconv_hf=Obj_hf(~Bool_conv_hf,:);
-                if ~isempty(Vio_hf)
-                    Vio_unconv_hf=Vio_hf(~Bool_conv_hf,:);
+                [X_HF,Obj_HF,~,~,Vio_HF,~]=datalibLoad(self.datalib_HF);
+                X_unconv_HF=X_HF(~Bool_conv_HF,:);
+                Obj_unconv_HF=Obj_HF(~Bool_conv_HF,:);
+                if ~isempty(Vio_HF)
+                    Vio_unconv_HF=Vio_HF(~Bool_conv_HF,:);
                 else
-                    Vio_unconv_hf=[];
+                    Vio_unconv_HF=[];
                 end
-                idx=find(Vio_unconv_hf == 0);
+                idx=find(Vio_unconv_HF == 0);
                 if isempty(idx)
-                    [vio_best,min_idx]=min(Vio_unconv_hf);
-                    obj_best=Obj_unconv_hf(min_idx);
-                    x_best=X_unconv_hf(min_idx,:);
+                    [vio_best,min_idx]=min(Vio_unconv_HF);
+                    obj_best=Obj_unconv_HF(min_idx);
+                    x_best=X_unconv_HF(min_idx,:);
                 else
-                    [obj_best,min_idx]=min(Obj_unconv_hf(idx));
+                    [obj_best,min_idx]=min(Obj_unconv_HF(idx));
                     vio_best=0;
-                    x_best=X_unconv_hf(idx(min_idx),:);
+                    x_best=X_unconv_HF(idx(min_idx),:);
                 end
 
                 if self.FLAG_INFORMATION
@@ -368,20 +375,20 @@ classdef OptimSACOAMS < handle
 
                 % convergence judgment
                 if self.FLAG_CONV_JUDGE
-                    if ( ((iter > 2) && (abs((obj_infill-obj_infill_old)/obj_infill_old) < self.obj_torl)) && ...
+                    if ( ((iter > 2) && (abs((obj_infill-obj_infill_old)/obj_infill_old) < self.obj_tol)) && ...
                             ((~isempty(vio_infill) && vio_infill == 0) || isempty(vio_infill)) )
                         done=1;
                     end
                 end
 
                 if ~done
-                    [XHF,Obj_hf,~,~,Vio_hf,~]=datalibLoad(self.datalib_hf);
-                    [XLF,Obj_lf,~,~,Vio_lf,~]=datalibLoad(self.datalib_lf);
-                    X_add_hf=[];
-                    X_add_lf=[];
+                    [X_HF,Obj_HF,~,~,Vio_HF,~]=datalibLoad(self.datalib_HF);
+                    [X_LF,Obj_LF,~,~,Vio_LF,~]=datalibLoad(self.datalib_LF);
+                    X_add_HF=[];
+                    X_add_LF=[];
 
                     % check if converage
-                    if ( ((iter > 2) && (abs((obj_infill-obj_infill_old)/obj_infill_old) < self.obj_torl)) && ...
+                    if ( ((iter > 2) && (abs((obj_infill-obj_infill_old)/obj_infill_old) < self.obj_tol)) && ...
                             ((~isempty(vio_infill) && vio_infill == 0) || isempty(vio_infill)) )
                         % resample LHD
                         % step 6.1
@@ -393,14 +400,14 @@ classdef OptimSACOAMS < handle
 
                         if isempty(self.X_potl)
                             self.detect_local_flag=true(1);
-                            self.add_lf_flag=true(1);
+                            self.add_LF_flag=true(1);
                         end
 
                         % step 6.2
                         % detech converage
-                        for x_idx=1:size(XHF,1)
-                            if ~Bool_conv_hf(x_idx)
-                                x_single_pred=fmincon(self.obj_fcn_srgt,XHF(x_idx,:),[],[],[],[],low_bou,up_bou,self.con_fcn_srgt,fmincon_options);
+                        for x_idx=1:size(X_HF,1)
+                            if ~Bool_conv_HF(x_idx)
+                                x_single_pred=fmincon(self.obj_fcn_srgt,X_HF(x_idx,:),[],[],[],[],low_bou,up_bou,self.con_fcn_srgt,fmincon_options);
 
                                 converage_flag=false(1);
 
@@ -413,14 +420,14 @@ classdef OptimSACOAMS < handle
 
                                 if converage_flag
                                     % if converage to local minimum, set to infeasible
-                                    Bool_conv_hf(x_idx)=true(1);
+                                    Bool_conv_HF(x_idx)=true(1);
                                 end
                             end
                         end
 
-                        for x_idx=1:size(XLF,1)
-                            if ~Bool_conv_lf(x_idx)
-                                x_single_pred=fmincon(self.obj_fcn_srgt,XLF(x_idx,:),[],[],[],[],low_bou,up_bou,self.con_fcn_srgt,fmincon_options);
+                        for x_idx=1:size(X_LF,1)
+                            if ~Bool_conv_LF(x_idx)
+                                x_single_pred=fmincon(self.obj_fcn_srgt,X_LF(x_idx,:),[],[],[],[],low_bou,up_bou,self.con_fcn_srgt,fmincon_options);
 
                                 converage_flag=false(1);
 
@@ -433,25 +440,25 @@ classdef OptimSACOAMS < handle
 
                                 if converage_flag
                                     % if converage to local minimum, set to infeasible
-                                    Bool_conv_lf(x_idx)=true(1);
+                                    Bool_conv_LF(x_idx)=true(1);
                                 end
                             end
                         end
 
                         % step 6.3
                         % use GPC to limit do not converage to exist local best
-                        if ~all(Bool_conv_hf)
-                            Class_hf=-1*ones(size(XHF,1),1);
-                            Class_hf(Bool_conv_hf)=1; % cannot go into converage area
+                        if ~all(Bool_conv_HF)
+                            Class_HF=-1*ones(size(X_HF,1),1);
+                            Class_HF(Bool_conv_HF)=1; % cannot go into converage area
 
-                            Class_lf=-1*ones(size(XLF,1),1);
-                            Class_lf(Bool_conv_lf)=1; % cannot go into converage area
+                            Class_LF=-1*ones(size(X_LF,1),1);
+                            Class_LF(Bool_conv_LF)=1; % cannot go into converage area
 
-                            if self.add_lf_flag
-                                [pred_func_MFGPC,self.model_MFGPC]=self.classifyGaussProcessMultiFidelity(XHF,Class_hf,XLF,Class_lf,self.model_MFGPC.hyp,true(1));
+                            if self.add_LF_flag
+                                [pred_func_MFGPC,self.model_MFGPC]=self.classifyGaussProcessMultiFidelity(X_HF,Class_HF,X_LF,Class_LF,self.model_MFGPC.hyp,true(1));
                                 con_GPC_fcn=@(x) conFcnGPC(x,pred_func_MFGPC);
                             else
-                                [pred_func_GPC,self.model_GPC]=self.classifyGaussProcess(XHF,Class_hf,self.model_GPC.hyp,true(1));
+                                [pred_func_GPC,self.model_GPC]=self.classifyGaussProcess(X_HF,Class_HF,self.model_GPC.hyp,true(1));
                                 con_GPC_fcn=@(x) conFcnGPC(x,pred_func_GPC);
                             end
                         else
@@ -462,34 +469,34 @@ classdef OptimSACOAMS < handle
                         % resample latin hypercubic and updata into data lib
                         usable_NFE=self.NFE_max-NFE;
                         sample_num_rst=min(sample_num_rst,ceil(usable_NFE/sum(Ratio)));
-                        sample_num_rst_hf=ceil(sample_num_rst*ratio_hf);
-                        sample_num_rst_lf=ceil(sample_num_rst*ratio_lf);
+                        sample_num_rst_HF=ceil(sample_num_rst*ratio_HF);
+                        sample_num_rst_LF=ceil(sample_num_rst*ratio_LF);
 
                         % resample LF origin
                         try
-                            X_add_lf=self.lhdESLHS(sample_num_rst_lf,vari_num,...
-                                low_bou,up_bou,XLF,con_GPC_fcn);
+                            X_add_LF=self.lhdESLHS(sample_num_rst_LF,vari_num,...
+                                low_bou,up_bou,X_LF,con_GPC_fcn);
                         catch
-                            X_add_lf=lhsdesign(sample_num_rst_lf,vari_num).*(up_bou-low_bou)+low_bou;
+                            X_add_LF=lhsdesign(sample_num_rst_LF,vari_num).*(up_bou-low_bou)+low_bou;
                         end
-                        % resample HF from x_updata_lf
-                        X_add_hf=self.lhdNSLE(X_add_lf,sample_num_rst_hf,vari_num,...
-                            low_bou,up_bou,XHF);
+                        % resample HF from x_updata_LF
+                        X_add_HF=self.lhdNSLE(X_add_LF,sample_num_rst_HF,vari_num,...
+                            low_bou,up_bou,X_HF);
 
                         if self.FLAG_DRAW_FIGURE && vari_num < 3
                             classifyVisualization(self.model_MFGPC,low_bou,up_bou);
-                            line(XHF(:,1),XHF(:,2),'Marker','o','color','k','LineStyle','none');
+                            line(X_HF(:,1),X_HF(:,2),'Marker','o','color','k','LineStyle','none');
                         end
                     else
                         % step 5.1
                         % check if improve
                         improve=0;
                         if isempty(repeat_idx)
-                            Bool_comp=(~Bool_conv_hf)&Bool_feas_hf;
+                            Bool_comp=(~Bool_conv_HF)&Bool_feas_HF;
                             Bool_comp(end)=false(1);
                             if self.FLAG_CON
-                                min_vio=min(Vio_hf(~Bool_conv_hf(1:end-1)));
-                                min_obj=min(Obj_hf(Bool_comp));
+                                min_vio=min(Vio_HF(~Bool_conv_HF(1:end-1)));
+                                min_obj=min(Obj_HF(Bool_comp));
 
                                 % if all point is infeasible,violation of point infilled is
                                 % less than min violation of all point means improve.if
@@ -507,7 +514,7 @@ classdef OptimSACOAMS < handle
                                     end
                                 end
                             else
-                                min_obj=min(Obj_hf(Bool_comp));
+                                min_obj=min(Obj_HF(Bool_comp));
 
                                 % obj of point infilled is less than min obj means improve
                                 if obj_infill < min_obj
@@ -521,15 +528,15 @@ classdef OptimSACOAMS < handle
                         % if obj no improve, use GPC to identify interest area
                         % than, imporve interest area surrogate quality
                         if ~improve
-                            if self.add_lf_flag
+                            if self.add_LF_flag
                                 % construct GPCMF
-                                train_num=min(size(self.datalib_hf.X,1),ceil((11*vari_num-1+25)/(ratio_hf+ratio_lf)));
-                                [pred_func_MFGPC,x_pareto_center]=self.trainFilterMF(Ratio,x_infill,train_num,Bool_conv_hf,Bool_conv_lf);
+                                train_num=min(size(self.datalib_HF.X,1),ceil((11*vari_num-1+25)/(ratio_HF+ratio_LF)));
+                                [pred_func_MFGPC,x_pareto_center]=self.trainFilterMF(Ratio,x_infill,train_num,Bool_conv_HF,Bool_conv_LF);
                                 con_GPC_fcn=@(x) conFcnGPC(x,pred_func_MFGPC);
                             else
                                 % construct GPC
-                                train_num=min(size(self.datalib_hf.X,1),11*vari_num-1+25);
-                                [pred_fcn_GPC,x_pareto_center]=self.trainFilter(x_infill,train_num,Bool_conv_hf);
+                                train_num=min(size(self.datalib_HF.X,1),11*vari_num-1+25);
+                                [pred_fcn_GPC,x_pareto_center]=self.trainFilter(x_infill,train_num,Bool_conv_HF);
                                 con_GPC_fcn=@(x) self.conFcnGPC(x,pred_fcn_GPC);
                             end
 
@@ -544,8 +551,8 @@ classdef OptimSACOAMS < handle
                             % generate trial point
                             usable_NFE=self.NFE_max-NFE;
                             sample_num_rst=min(sample_num_add,ceil(usable_NFE/sum(Ratio)));
-                            sample_num_rst_hf=ceil(sample_num_rst*ratio_hf);
-                            sample_num_rst_lf=ceil(sample_num_rst*ratio_lf);
+                            sample_num_rst_HF=ceil(sample_num_rst*ratio_HF);
+                            sample_num_rst_LF=ceil(sample_num_rst*ratio_LF);
 
                             trial_point=repmat(x_infill,trial_num,1);
                             for variable_idx=1:vari_num
@@ -556,7 +563,7 @@ classdef OptimSACOAMS < handle
                             trial_point=min(trial_point,up_bou);
 
                             Bool_negetive=pred_func_MFGPC(trial_point) == -1;
-                            if sum(Bool_negetive) < sample_num_rst_lf
+                            if sum(Bool_negetive) < sample_num_rst_LF
                                 value=con_GPC_fcn(trial_point);
                                 thres=quantile(value,0.25);
                                 Bool_negetive=value<thres;
@@ -564,16 +571,16 @@ classdef OptimSACOAMS < handle
                             trial_point=trial_point(Bool_negetive,:);
 
                             % step 5.4
-                            if self.add_lf_flag
+                            if self.add_LF_flag
                                 % select LF point from trial_point
 
                                 max_dist=0;
                                 iter_select=1;
                                 while iter_select < 100
-                                    select_idx=randperm(size(trial_point,1),sample_num_rst_lf);
-                                    dist=self.calMinDistanceIter(trial_point(select_idx,:),XLF);
+                                    select_idx=randperm(size(trial_point,1),sample_num_rst_LF);
+                                    dist=self.calMinDistanceIter(trial_point(select_idx,:),X_LF);
                                     if max_dist < dist
-                                        X_add_lf=trial_point(select_idx,:);
+                                        X_add_LF=trial_point(select_idx,:);
                                         max_dist=dist;
                                     end
                                     iter_select=iter_select+1;
@@ -583,25 +590,25 @@ classdef OptimSACOAMS < handle
                                 max_dist=0;
                                 iter_select=1;
                                 while iter_select < 100
-                                    select_idx=randperm(size(X_add_lf,1),sample_num_rst_hf);
-                                    dist=self.calMinDistanceIter(X_add_lf(select_idx,:),XHF);
+                                    select_idx=randperm(size(X_add_LF,1),sample_num_rst_HF);
+                                    dist=self.calMinDistanceIter(X_add_LF(select_idx,:),X_HF);
                                     if max_dist < dist
-                                        X_add_hf=X_add_lf(select_idx,:);
+                                        X_add_HF=X_add_LF(select_idx,:);
                                         max_dist=dist;
                                     end
                                     iter_select=iter_select+1;
                                 end
                             else
-                                X_add_lf=[];
+                                X_add_LF=[];
 
                                 % select HF point from trial_point
                                 max_dist=0;
                                 iter_select=1;
                                 while iter_select < 100
-                                    select_idx=randperm(size(trial_point,1),sample_num_rst_hf);
-                                    dist=self.calMinDistanceIter(trial_point(select_idx,:),XHF);
+                                    select_idx=randperm(size(trial_point,1),sample_num_rst_HF);
+                                    dist=self.calMinDistanceIter(trial_point(select_idx,:),X_HF);
                                     if max_dist < dist
-                                        X_add_hf=trial_point(select_idx,:);
+                                        X_add_HF=trial_point(select_idx,:);
                                         max_dist=dist;
                                     end
                                     iter_select=iter_select+1;
@@ -611,26 +618,26 @@ classdef OptimSACOAMS < handle
                             if self.FLAG_DRAW_FIGURE && vari_num < 3
                                 classifyVisualization(self.model_MFGPC,low_bou,up_bou);
                                 line(trial_point(:,1),trial_point(:,2),'Marker','o','color','k','LineStyle','none');
-                                line(X_add_hf(:,1),X_add_hf(:,2),'Marker','o','color','g','LineStyle','none');
+                                line(X_add_HF(:,1),X_add_HF(:,2),'Marker','o','color','g','LineStyle','none');
                             end
                         end
                     end
 
                     % step 7
                     % updata data lib
-                    [self.datalib_hf,X_add_hf,~,~,~,Vio_updata_hf,~,~,NFE_updata]=...
-                        datalibAdd(self.datalib_hf,X_add_hf,self.protect_range,self.WRIRE_FILE_FLAG,self.str_data_file_hf);
-                    NFE=NFE+NFE_updata*cost_hf;
+                    [self.datalib_HF,X_add_HF,~,~,~,Vio_updata_HF,~,~,NFE_updata]=...
+                        datalibAdd(self.datalib_HF,X_add_HF,self.protect_range,self.WRIRE_FILE_FLAG,self.str_data_file_HF);
+                    NFE=NFE+NFE_updata*cost_HF;
                     NFE_list(1)=NFE_list(1)+NFE_updata;
-                    Bool_feas_hf=[Bool_feas_hf;Vio_updata_hf==0];
-                    Bool_conv_hf=[Bool_conv_hf;false(size(X_add_hf,1),1)];
+                    Bool_feas_HF=[Bool_feas_HF;Vio_updata_HF==0];
+                    Bool_conv_HF=[Bool_conv_HF;false(size(X_add_HF,1),1)];
 
-                    [self.datalib_lf,X_add_lf,~,~,~,Vio_updata_lf,~,~,NFE_updata]=...
-                        datalibAdd(self.datalib_lf,X_add_lf,self.protect_range,self.WRIRE_FILE_FLAG,self.str_data_file_lf);
-                    NFE=NFE+NFE_updata*cost_lf;
+                    [self.datalib_LF,X_add_LF,~,~,~,Vio_updata_LF,~,~,NFE_updata]=...
+                        datalibAdd(self.datalib_LF,X_add_LF,self.protect_range,self.WRIRE_FILE_FLAG,self.str_data_file_LF);
+                    NFE=NFE+NFE_updata*cost_LF;
                     NFE_list(2)=NFE_list(2)+NFE_updata;
-                    Bool_feas_lf=[Bool_feas_lf;Vio_updata_lf==0];
-                    Bool_conv_lf=[Bool_conv_lf;false(size(X_add_lf,1),1)];
+                    Bool_feas_LF=[Bool_feas_LF;Vio_updata_LF==0];
+                    Bool_conv_LF=[Bool_conv_LF;false(size(X_add_LF,1),1)];
 
                     % forced interrupt
                     if iter > self.iter_max || NFE >= self.NFE_max
@@ -648,8 +655,8 @@ classdef OptimSACOAMS < handle
             end
 
             % find best result to record
-            x_best=self.datalib_hf.X(self.datalib_hf.result_best_idx(end),:);
-            obj_best=self.datalib_hf.Obj(self.datalib_hf.result_best_idx(end),:);
+            x_best=self.datalib_HF.X(self.datalib_HF.result_best_idx(end),:);
+            obj_best=self.datalib_HF.Obj(self.datalib_HF.result_best_idx(end),:);
 
             result_x_best=result_x_best(1:iter-1,:);
             result_obj_best=result_obj_best(1:iter-1);
@@ -661,8 +668,8 @@ classdef OptimSACOAMS < handle
             output.obj_local_best=self.Obj_local_best;
             output.NFE_list=NFE_list;
 
-            output.datalib_hf=self.datalib_hf;
-            output.datalib_lf=self.datalib_lf;
+            output.datalib_HF=self.datalib_HF;
+            output.datalib_LF=self.datalib_LF;
 
             function [con,coneq]=conFcnGPC(x,pred_fcn_GPC)
                 % function to obtain probability predict function
@@ -713,13 +720,13 @@ classdef OptimSACOAMS < handle
         end
 
         function [obj_fcn_srgt,con_fcn_srgt,output]=getSrgtFcnMF...
-                (self,XMF,Obj_MF,Con_MF,Coneq_MF)
+                (self,X_MF,Obj_MF,Con_MF,Coneq_MF)
             % base on input data to generate surrogate predict function
             % con_fcn_srgt if format of nonlcon function in fmincon
             % judge MF and SF quality and select best one
             %
 
-            [pred_func_obj,model_obj,model_obj_type]=self.getBestModel(XMF,Obj_MF);
+            [pred_func_obj,model_obj,model_obj_type]=self.getBestModel(X_MF,Obj_MF);
 
             if ~isempty(Con_MF)
                 con_number=size(Con_MF{1},2);
@@ -728,7 +735,7 @@ classdef OptimSACOAMS < handle
                 model_con_type_list=cell(con_num,1ber);
                 for con_idx=1:con_number
                     [pred_funct_con_list{con_idx},model_con_list{con_idx},model_con_type_list{con_idx}]=self.getBestModel...
-                        (XMF,{Con_MF{1}(:,con_idx),Con_MF{2}(:,con_idx)});
+                        (X_MF,{Con_MF{1}(:,con_idx),Con_MF{2}(:,con_idx)});
                 end
             else
                 pred_funct_con_list=[];
@@ -743,7 +750,7 @@ classdef OptimSACOAMS < handle
                 model_coneq_type_list=cell(coneq_num,1ber);
                 for coneq_idx=1:size(Coneq_MF,2)
                     [pred_funct_coneq{coneq_idx},model_coneq_list{coneq_idx},model_coneq_type_list{coneq_idx}]=self.getBestModel...
-                        (XMF,{Coneq_MF{1}(:,coneq_idx),Coneq_MF{2}(:,coneq_idx)});
+                        (X_MF,{Coneq_MF{1}(:,coneq_idx),Coneq_MF{2}(:,coneq_idx)});
                 end
             else
                 pred_funct_coneq=[];
@@ -842,7 +849,7 @@ classdef OptimSACOAMS < handle
                             if ~isempty(coneq_potential)
                                 coneq_potential=coneq_potential/self.nomlz_value.*coneq_max_list;
                             end
-                            self.Vio_potl=[self.Vio_potl;calViolation(con_potential,coneq_potential,self.con_torl)];
+                            self.Vio_potl=[self.Vio_potl;calViolation(con_potential,coneq_potential,self.con_tol)];
                         end
                     end
                 end
@@ -864,7 +871,7 @@ classdef OptimSACOAMS < handle
                     if ~isempty(coneq_potential)
                         coneq_potential=coneq_potential/self.nomlz_value.*coneq_max_list;
                     end
-                    self.Vio_potl=[self.Vio_potl;calViolation(con_potential,coneq_potential,self.con_torl)];
+                    self.Vio_potl=[self.Vio_potl;calViolation(con_potential,coneq_potential,self.con_tol)];
                 end
 
                 % sort X potential by Vio
@@ -890,7 +897,7 @@ classdef OptimSACOAMS < handle
                     if ~isempty(coneq_potential)
                         coneq_potential=coneq_potential/self.nomlz_value.*coneq_max_list;
                     end
-                    self.Vio_potl(x_idx,:)=calViolation(con_potential,coneq_potential,self.con_torl);
+                    self.Vio_potl(x_idx,:)=calViolation(con_potential,coneq_potential,self.con_tol);
                 end
 
                 % merge X potential
@@ -933,65 +940,65 @@ classdef OptimSACOAMS < handle
 
         end
 
-        function [pred_fcn_MFGPC,x_pareto_center]=trainFilterMF(self,Ratio,x_infill,train_num,Bool_conv_hf,Bool_conv_lf)
+        function [pred_fcn_MFGPC,x_pareto_center]=trainFilterMF(self,Ratio,x_infill,train_num,Bool_conv_HF,Bool_conv_LF)
             % train filter of gaussian process classifer
             %
-            ratio_hf=Ratio(1);
-            ratio_lf=Ratio(2);
+            ratio_HF=Ratio(1);
+            ratio_LF=Ratio(2);
 
-            [XHF,Obj_hf,~,~,~,Ks_hf]=datalibLoad(self.datalib_hf);
-            train_num_hf=min(train_num*ratio_hf,size(XHF,1));
+            [X_HF,Obj_HF,~,~,~,Ks_HF]=datalibLoad(self.datalib_HF);
+            train_num_HF=min(train_num*ratio_HF,size(X_HF,1));
             % base on distance select usable point
-            x_distance=sum(abs(XHF-x_infill),2);
+            x_distance=sum(abs(X_HF-x_infill),2);
             [~,idx]=sort(x_distance);
-            Obj_hf=Obj_hf(idx(1:train_num_hf),:);
-            Ks_hf=Ks_hf(idx(1:train_num_hf),:);
-            XHF=XHF(idx(1:train_num_hf),:);
-            Bool_conv_hf=Bool_conv_hf(idx(1:train_num_hf),:);
+            Obj_HF=Obj_HF(idx(1:train_num_HF),:);
+            Ks_HF=Ks_HF(idx(1:train_num_HF),:);
+            X_HF=X_HF(idx(1:train_num_HF),:);
+            Bool_conv_HF=Bool_conv_HF(idx(1:train_num_HF),:);
 
-            [XLF,Obj_lf,~,~,~,Ks_lf]=datalibLoad(self.datalib_lf);
-            train_num_lf=min(train_num*ratio_lf,size(XLF,1));
+            [X_LF,Obj_LF,~,~,~,Ks_LF]=datalibLoad(self.datalib_LF);
+            train_num_LF=min(train_num*ratio_LF,size(X_LF,1));
             % base on distance select usable point
-            x_distance=sum(abs(XLF-x_infill),2);
+            x_distance=sum(abs(X_LF-x_infill),2);
             [~,idx]=sort(x_distance);
-            Obj_lf=Obj_lf(idx(1:train_num_lf),:);
-            Ks_lf=Ks_lf(idx(1:train_num_lf),:);
-            XLF=XLF(idx(1:train_num_lf),:);
-            Bool_conv_lf=Bool_conv_lf(idx(1:train_num_lf),:);
+            Obj_LF=Obj_LF(idx(1:train_num_LF),:);
+            Ks_LF=Ks_LF(idx(1:train_num_LF),:);
+            X_LF=X_LF(idx(1:train_num_LF),:);
+            Bool_conv_LF=Bool_conv_LF(idx(1:train_num_LF),:);
 
             if self.FLAG_CON
                 % base on filter to decide which x should be choose
-                pareto_idx_list=self.getParetoFront([Obj_hf,Ks_hf]);
+                pareto_idx_list=self.getParetoFront([Obj_HF,Ks_HF]);
 
-                Class_hf=ones(size(XHF,1),1);
-                Class_hf(pareto_idx_list)=-1;
-                Class_hf(Bool_conv_hf)=1; % cannot go into convarage area
+                Class_HF=ones(size(X_HF,1),1);
+                Class_HF(pareto_idx_list)=-1;
+                Class_HF(Bool_conv_HF)=1; % cannot go into convarage area
 
-                x_pareto_center=sum(XHF(pareto_idx_list,:),1)/length(pareto_idx_list);
+                x_pareto_center=sum(X_HF(pareto_idx_list,:),1)/length(pareto_idx_list);
 
-                pareto_idx_list=self.getParetoFront([Obj_lf,Ks_lf]);
+                pareto_idx_list=self.getParetoFront([Obj_LF,Ks_LF]);
 
-                Class_lf=ones(size(XLF,1),1);
-                Class_lf(pareto_idx_list)=-1;
-                Class_lf(Bool_conv_lf)=1; % cannot go into convarage area
+                Class_LF=ones(size(X_LF,1),1);
+                Class_LF(pareto_idx_list)=-1;
+                Class_LF(Bool_conv_LF)=1; % cannot go into convarage area
 
                 [pred_fcn_MFGPC,self.model_MFGPC]=self.classifyGaussProcessMultiFidelity...
-                    (XHF,Class_hf,XLF,Class_lf,self.model_MFGPC.hyp,true(1));
+                    (X_HF,Class_HF,X_LF,Class_LF,self.model_MFGPC.hyp,true(1));
 
             else
-                obj_threshold=prctile(Obj_hf,50-40*sqrt(NFE/self.NFE_max));
-                Class_hf=ones(size(XHF,1),1);
-                Class_hf(Obj_hf < obj_threshold)=-1;
-                Class_hf(Bool_conv_hf)=1; % cannot go into convarage area
+                obj_threshold=prctile(Obj_HF,50-40*sqrt(NFE/self.NFE_max));
+                Class_HF=ones(size(X_HF,1),1);
+                Class_HF(Obj_HF < obj_threshold)=-1;
+                Class_HF(Bool_conv_HF)=1; % cannot go into convarage area
 
-                Class_lf=ones(size(XLF,1),1);
-                Class_lf(Obj_lf < obj_threshold)=-1;
-                Class_lf(Bool_conv_lf)=1; % cannot go into convarage area
+                Class_LF=ones(size(X_LF,1),1);
+                Class_LF(Obj_LF < obj_threshold)=-1;
+                Class_LF(Bool_conv_LF)=1; % cannot go into convarage area
 
-                x_pareto_center=sum(XHF(Obj < obj_threshold,:),1)/sum(Obj_hf < obj_threshold);
+                x_pareto_center=sum(X_HF(Obj < obj_threshold,:),1)/sum(Obj_HF < obj_threshold);
 
                 [pred_fcn_MFGPC,self.model_MFGPC]=self.classifyGaussProcessMultiFidelity...
-                    (XHF,Class_hf,XLF,Class_lf,self.model_MFGPC.hyp,true(1));
+                    (X_HF,Class_HF,X_LF,Class_LF,self.model_MFGPC.hyp,true(1));
 
             end
 
@@ -1000,7 +1007,7 @@ classdef OptimSACOAMS < handle
         function [pred_func_GPC,x_pareto_center]=trainFilter(self,x_infill,train_num,Bool_conv)
             % train filter of gaussian process classifer
             %
-            [X,Obj,~,~,~,Ks]=datalibLoad(self.datalib_hf);
+            [X,Obj,~,~,~,Ks]=datalibLoad(self.datalib_HF);
             % base on distance select usable point
             x_dist=sum(abs(X-x_infill),2);
             [~,idx]=sort(x_dist);
@@ -1035,19 +1042,19 @@ classdef OptimSACOAMS < handle
             end
         end
 
-        function [pred_fcn,model,type]=getBestModel(self,XMF,Obj_MF)
+        function [pred_fcn,model,type]=getBestModel(self,X_MF,Obj_MF)
             % judge use single fidelity of mulit fidelity by R^2
             %
 
-            xhf_num=size(XMF{1},1);
+            x_HF_num=size(X_MF{1},1);
             [pred_func_MF,model_obj_MF]=self.srgtsfRBFMultiFidelityPreModel...
-                (XMF{1},Obj_MF{1},[],XMF{2},Obj_MF{2},[]);
-            error_MF=( model_obj_MF.beta./diag(model_obj_MF.H(:,1:xhf_num)\eye(xhf_num))+...
-                model_obj_MF.alpha./diag(model_obj_MF.H(:,xhf_num+1:end)\eye(xhf_num)) )*model_obj_MF.stdD_Y;
+                (X_MF{1},Obj_MF{1},[],X_MF{2},Obj_MF{2},[]);
+            error_MF=( model_obj_MF.beta./diag(model_obj_MF.H(:,1:x_HF_num)\eye(x_HF_num))+...
+                model_obj_MF.alpha./diag(model_obj_MF.H(:,x_HF_num+1:end)\eye(x_HF_num)) )*model_obj_MF.stdD_Y;
             Rsq_MF=1-sum(error_MF.^2)/sum((mean(Obj_MF{1})-Obj_MF{1}).^2);
 
             [pred_func_SF,model_obj_SF]=self.srgtsfRBF...
-                (XMF{1},Obj_MF{1});
+                (X_MF{1},Obj_MF{1});
             error_SF=(model_obj_SF.beta./diag(model_obj_SF.inv_RBF_matrix))*model_obj_SF.stdD_Y;
             Rsq_SF=1-sum(error_SF.^2)/sum((mean(Obj_MF{1})-Obj_MF{1}).^2);
 
@@ -1067,10 +1074,10 @@ classdef OptimSACOAMS < handle
     methods(Static) % auxiliary function
         function [X_model_MF,Obj_model_MF,Con_model_MF,Coneq_model_MF,Vio_model_MF,Ks_model_MF,...
                 obj_max,con_max_list,coneq_max_list,vio_max,ks_max]=preSurrData...
-                (fidelity_number,XMF,Obj_MF,Con_MF,Coneq_MF,Vio_MF,Ks_MF,nomlz_value)
+                (fidelity_number,X_MF,Obj_MF,Con_MF,Coneq_MF,Vio_MF,Ks_MF,nomlz_value)
             % normalize data to construct surrogate model
             %
-            X_model_MF=XMF;
+            X_model_MF=X_MF;
 
             [Obj_model_MF,obj_max]=calNormalizeData...
                 (fidelity_number,Obj_MF,nomlz_value);
@@ -1641,7 +1648,7 @@ for x_idx=1:x_new_num
         vio=[];
         ks=[];
     else
-        vio=calViolation(con,coneq,datalib.con_torl);
+        vio=calViolation(con,coneq,datalib.con_tol);
         ks=max([con,coneq]);
     end
 
@@ -1765,7 +1772,7 @@ if ~isempty(datalib.Ks) || ~isempty(ks)
 end
 end
 
-function vio_list=calViolation(con_list,coneq_list,con_torl)
+function vio_list=calViolation(con_list,coneq_list,con_tol)
 % calculate violation of data
 %
 if isempty(con_list) && isempty(coneq_list)
@@ -1773,10 +1780,10 @@ if isempty(con_list) && isempty(coneq_list)
 else
     vio_list=zeros(max(size(con_list,1),size(coneq_list,1)),1);
     if ~isempty(con_list)
-        vio_list=vio_list+sum(max(con_list-con_torl,0),2);
+        vio_list=vio_list+sum(max(con_list-con_tol,0),2);
     end
     if ~isempty(coneq_list)
-        vio_list=vio_list+sum(max(abs(coneq_list)-con_torl,0),2);
+        vio_list=vio_list+sum(max(abs(coneq_list)-con_tol,0),2);
     end
 end
 end

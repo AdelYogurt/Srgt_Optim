@@ -97,7 +97,7 @@ switch dim
 
     otherwise
         if isempty(draw_dim)
-            warning('surrogateVisualize: lack draw_dimension input, using default value dimension [1 2]')
+            warning('displaySrgt: lack draw_dimension input, using default value dimension [1 2]')
             draw_dim=[1,2];
         end
         d_bou=(up_bou(draw_dim)-low_bou(draw_dim))/grid_num;

@@ -22,13 +22,13 @@ classdef OptimSADEKTS < OptimKRGCDE
 
     % main function
     methods
-        function self=OptimSADEKTS(NFE_max,iter_max,obj_torl,con_torl)
+        function self=OptimSADEKTS(NFE_max,iter_max,obj_tol,con_tol)
             % initialize optimization
             %
             if nargin < 4
-                con_torl=[];
+                con_tol=[];
                 if nargin < 3
-                    obj_torl=[];
+                    obj_tol=[];
                     if nargin < 2
                         iter_max=[];
                         if nargin < 1
@@ -38,14 +38,14 @@ classdef OptimSADEKTS < OptimKRGCDE
                 end
             end
 
-            if isempty(con_torl)
-                con_torl=1e-3;
+            if isempty(con_tol)
+                con_tol=1e-3;
             end
-            if isempty(obj_torl)
-                obj_torl=1e-6;
+            if isempty(obj_tol)
+                obj_tol=1e-6;
             end
 
-            self@OptimKRGCDE(NFE_max,iter_max,obj_torl,con_torl);
+            self@OptimKRGCDE(NFE_max,iter_max,obj_tol,con_tol);
         end
 
         function X_init=dataKTS(self,datalib_source,vari_num,low_bou,up_bou,pop_num,init_type)
@@ -82,7 +82,7 @@ classdef OptimSADEKTS < OptimKRGCDE
                         x_src_norm=X_src_inherit_norm(x_idx,:);
                         idx_search=x_idx+1:size(X_src_inherit_norm,1);
                         dist=vecnorm(X_src_inherit_norm(idx_search,:)-x_src_norm,2,2);
-                        idx_search(dist > self.add_torl)=[];
+                        idx_search(dist > self.add_tol)=[];
                         X_src_inherit_norm(idx_search,:)=[];
                         x_idx=x_idx+1;
                     end
